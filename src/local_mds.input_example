@@ -1,0 +1,24 @@
+traj_3k.coord
+traj_3k.coord_neighbor
+1 16 
+1001
+3000 1500 30 15
+0.04 0.01 5
+3
+
+#> <file name of the trajectory
+#> <file name of the nearest neighbor graph>
+#> <id of the start point> <id of the end point>
+#> <identifier of the output file for the current job>
+#> <k> <k1> <kmin> <dk>
+#> <cutoff1 for the first derivative of the spectra> <stepsize of the cutoff> <number of cutoffs>
+#> <number of cpus in the small group to share the trajectory>
+
+# k: number of neighbors to calculate the spectra
+# k1: number of points to calculate in MDS (k1<=k)
+# k1 points are picked from the k neighbor list with the same step size
+# for example: picking 1000 points from the first 3000 neighbors will 
+# lead to a list of point as 1, 4, 7, 10, 13, ..., 2998
+# kmin: the start point for the MDS spectra 
+# (kmin>=the number of eigenvalues, currently set as dnev=30 in the program)
+# dk: the step size for generating the MDS spectra
