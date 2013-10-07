@@ -12,7 +12,11 @@
 ! 2. Zheng, W., Rohrdanz, M.A., Caflisch, A., Dinner, A.R.,     !
 !    and Clementi, C., J. Phys. Chem. B, 115, 13065-13074, 2011 !
 !---------------------------------------------------------------!
-
+!---------------------------------------------------------------!                                                           
+! LSDMap v1.1 - Sept 2013 - Merger Release                      !                                                           
+!                                                               !                                                          
+! Developed by                                                  !                                                          
+!   E.Breitmoser, EPCC, Uonversity of Edinburgh                 !                                                          !---------------------------------------------------------------!                                                           
 !-----------------------------------------------------------------------
 ! Parallel LSDMap
 !
@@ -250,6 +254,9 @@ if(rank==0) then
       deallocate(tmp_eps)
    endif
 endif
+
+deallocate(FullEpsArray)
+
 if(status_eps==1) then 
    call MPI_BCAST(LocalScale,Npoints,MPI_DOUBLE_PRECISION,0,comm,ierr)
 else

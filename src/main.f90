@@ -1,8 +1,14 @@
+!---------------------------------------------------------------!                                                           
+! LSDMap v1.1 - Sept 2013 - Merger Release                      !                                                           
+!                                                               !                                                          
+! Developed by                                                  !                                                          
+!   E.Breitmoser, EPCC, Uonversity of Edinburgh                 !                                                           
+!---------------------------------------------------------------!                                                           
 program MainRoutine
 
 use parallel, only : size, rank, ierr, comm, displacements, counts
-use data, only : ns,ne,Npoints,dim,Nneigh,Natoms,nloc,nstart,nend,nlimit,extra,tmp2,tmpTraj,traj,    &
-         idneigh,dist,tmp_rmsd,EpsArray, FullEpsArray,nn_traj,norder,ncore,dmds,kmin,dk,neps,seps,   &
+use data, only : ns,ne,Npoints,dim,Nneigh,Natoms,nloc,nstart,nend,nlimit,extra,traj,    &
+         idneigh,dist,tmp_rmsd,nn_traj,norder,ncore,dmds,kmin,dk,neps,seps,   &
           deps,NN_input_weight,output_file,status_dmap,status_eps,column_eps,cutoff,eps0, current_time
 
 
@@ -21,7 +27,7 @@ call MPI_init(ierr)
 call MPI_comm_size(comm,size,ierr)
 call MPI_comm_rank(comm,rank,ierr)
 
-if(rank==0) print *,'LSDMap v1.0 - Sept 01 2013 - Initial Merger Release'
+if(rank==0) print *,'LSDMap v1.1 - Sept 01 2013 - Initial Merger Release'
 if(rank==0) call current_time('Program start...')
 
 ! get parameters from xyz-input file                                                                                           
@@ -69,22 +75,16 @@ call MPI_BCAST(dim,1,MPI_INTEGER,0,comm,ierr)
 Natoms = dim/3
 
 ! read input trajectory                                                                                                    
-allocate(traj(Npoints*Natoms,3))
-! To be used in p_rmsd_neighbor, better Fortran ordering/mem access
-allocate(tmpTraj(3,Npoints*Natoms))
-! To be used in p_local_mds
-allocate(tmp2(dim,Npoints))
+! To be used in p_rmsd_neighbor and p_local_mds, better Fortran ordering/mem access
+allocate(traj(3,Npoints*Natoms))
 
 if (rank==0) then
    do idx=1,Npoints
-      read(10,*) (traj((idx-1)*Natoms+jdx,1),traj((idx-1)*Natoms+jdx,2),traj((idx-1)*Natoms+jdx,3), jdx=1,Natoms)
+      read(10,*) (traj(1,(idx-1)*Natoms+jdx),traj(2,(idx-1)*Natoms+jdx),traj(3,(idx-1)*Natoms+jdx), jdx=1,Natoms)
    enddo
    close(10)
 endif
 call MPI_BCAST(traj,Npoints*dim,MPI_REAL,0,comm,ierr)
-
-tmpTraj = reshape(traj,(/3,Npoints*Natoms/),order=order2)
-tmp2    = reshape(tmpTraj,(/dim,Npoints/))
 
 
 ! Set-up for call to first subroutine
@@ -154,13 +154,9 @@ call Weighted_LSDMap
 deallocate(dist)
 deallocate(tmp_rmsd)
 deallocate(idneigh)
-deallocate(EpsArray)
-deallocate(FullEpsArray)
 deallocate(counts)
 deallocate(displacements)
 deallocate(traj)
-deallocate(tmpTraj)
-deallocate(tmp2)
 
 if(rank==0) call current_time('Program end.')
 

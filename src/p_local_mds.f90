@@ -12,8 +12,12 @@
 ! 2. Zheng, W., Rohrdanz, M.A., Caflisch, A., Dinner, A.R.,     !
 !    and Clementi, C., J. Phys. Chem. B, 115, 13065-13074, 2011 !
 !---------------------------------------------------------------!
+! LSDMap v1.1 - Sept 2013 - Merger Release                      !                                                         
+!                                                               !                                                          
+! Developed by                                                  !                                                          
+!   E.Breitmoser, EPCC, Uonversity of Edinburgh                 !
+!---------------------------------------------------------------!
 
-!-----------------------------------------------------------------------
 ! Parallel Local PCA analysis
 !
 ! Input
@@ -67,7 +71,7 @@ subroutine p_local_mds
 use Qsort_Module
 use iso_c_binding
 use ftn_c
-use data, only :  ns,ne,Npoints,dim,Nneigh,Natoms,nloc,nend,nlimit,tmp2,tmpTraj,traj,idneigh,EpsArray,   &
+use data, only :  ns,ne,Npoints,dim,Nneigh,Natoms,nloc,nend,nlimit,traj,idneigh,EpsArray,   &
                  FullEpsArray,ncore,dmds,kmin,dk,neps,seps,deps, current_time
 
 use parallel, only :  size, rank, ierr, comm, counts
@@ -187,7 +191,7 @@ allocate(loctraj(dim,nloctraj))
 !   enddo
    do idx=nstraj,netraj
       do jdx = 1, dim
-         loctraj(jdx,idx-nstraj+1) = tmp2(jdx,idx)
+         loctraj(jdx,idx-nstraj+1) = traj(mod((jdx-1),3)+1,((idx-1)*dim/3)+((jdx-1)/3)+1)
       enddo
    enddo
 !endif
@@ -214,8 +218,6 @@ it_rpmds=1
 d_rpmds=2
 stepsize=floor(Nneigh/dmds/1.)
 
-
-allocate(FullEpsArray(myeps,Npoints))
 allocate(EpsArray(myeps,mynstart:mynend))
 
 do idx=mynstart,mynstart+nlimit-1
@@ -331,7 +333,9 @@ do idx=mynstart,mynstart+nlimit-1
    endif ! matching line 319 if(id<=nend)
 enddo
 
+allocate(FullEpsArray(myeps,Npoints))
 call MPI_GATHERV(EpsArray,myeps*nloc,MPI_REAL8,FullEpsArray,myeps*counts,dspls,MPI_REAL8,0,comm,ierr)
+deallocate(EpsArray)
 
 if (rank == size-1 .and. nend ==Npoints) then
    write(*,'(a,f10.6,a,f10.6,a,f10.6)') '% the first derivative cutoff = ', seps,':',deps,':',&

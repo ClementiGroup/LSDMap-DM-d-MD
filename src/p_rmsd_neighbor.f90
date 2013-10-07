@@ -12,6 +12,11 @@
 ! 2. Zheng, W., Rohrdanz, M.A., Caflisch, A., Dinner, A.R.,     !
 !    and Clementi, C., J. Phys. Chem. B, 115, 13065-13074, 2011 !
 !---------------------------------------------------------------!
+!---------------------------------------------------------------!                                                           
+! LSDMap v1.1 - Sept 2013 - Merger Release                      !                                                           
+!                                                               !                                                          
+! Developed by                                                  !                                                          
+!   E.Breitmoser, EPCC, Uonversity of Edinburgh                 !                                                          !---------------------------------------------------------------!                                                           
 
 !-----------------------------------------------------------------------
 ! Parallel RMSD and nearest neighboring map calculation.
@@ -42,7 +47,7 @@ use Qsort_Module
 use iso_c_binding
 use ftn_c
 use parallel, only : rank, ierr, comm, displacements, counts
-use data, only : Npoints,Nneigh,Natoms,nloc,nstart,nend,tmpTraj,idneigh,dist,tmp_rmsd,nn_traj,current_time
+use data, only : Npoints,Nneigh,Natoms,nloc,nstart,nend,traj,idneigh,dist,tmp_rmsd,nn_traj,current_time
 
 
 implicit none
@@ -82,11 +87,11 @@ weight=1.
 
 do idx=nstart,nend
 !   xx=traj((idx-1)*Natoms+1:idx*Natoms,:)
-   xx=tmpTraj(:,(idx-1)*Natoms+1:idx*Natoms)
+   xx=traj(:,(idx-1)*Natoms+1:idx*Natoms)
    ! calculate the distance to the regarding point
    do jdx=1,Npoints
 !      yy=traj((jdx-1)*Natoms+1:jdx*Natoms,:)
-      yy=tmpTraj(:,(jdx-1)*Natoms+1:jdx*Natoms)
+      yy=traj(:,(jdx-1)*Natoms+1:jdx*Natoms)
 !      dist(jdx,idx)=calcrmsdrotationalmatrix(Natoms,xx(:,1),xx(:,2),xx(:,3),yy(:,1),yy(:,2),yy(:,3),rot,weight)
       dist(jdx,idx)=calcrmsdrotationalmatrix(Natoms,xx(1,:),xx(2,:),xx(3,:),yy(1,:),yy(2,:),yy(3,:),rot,weight)
    enddo

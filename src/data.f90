@@ -11,7 +11,7 @@ integer :: Npoints, dim, Nneigh, Natoms
 
 integer :: nloc,nstart,nend,nlimit
 integer :: extra
-real, allocatable :: tmp2(:,:),tmpTraj(:,:),traj(:,:)
+real, allocatable :: traj(:,:)
 ! Added second dim for arrays below for book-keeping
 integer, allocatable, save :: idneigh(:,:)
 real(kind=8), allocatable :: dist(:,:)
