@@ -1,15 +1,15 @@
 ## pbs script environment
 # number of nodes
-nodes=1
+nodes=128
 
 # number of CPUs in each node
-ppn=128
+ppn=32
 
 # walltime
-walltime='8:00:00'
+walltime='0:20:00'
 
-# queue name
-queue='serial'
+# budget
+budget='e290'
 
 
 ## Input file
