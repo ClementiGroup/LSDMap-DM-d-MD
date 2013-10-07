@@ -1,7 +1,10 @@
 program MainRoutine
 
-use ModuleParallel
-use ModuleChemistry
+use parallel, only : size, rank, ierr, comm, displacements, counts
+use data, only : ns,ne,Npoints,dim,Nneigh,Natoms,nloc,nstart,nend,nlimit,extra,tmp2,tmpTraj,traj,    &
+         idneigh,dist,tmp_rmsd,EpsArray, FullEpsArray,nn_traj,norder,ncore,dmds,kmin,dk,neps,seps,   &
+          deps,NN_input_weight,output_file,status_dmap,status_eps,column_eps,cutoff,eps0, current_time
+
 
 implicit none
 include 'mpif.h'

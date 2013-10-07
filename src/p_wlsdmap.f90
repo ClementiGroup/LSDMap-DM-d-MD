@@ -74,8 +74,10 @@
 
 subroutine Weighted_LSDMap
 
-use ModuleParallel
-use ModuleChemistry
+use parallel, only :  size, rank, ierr, comm
+use data, only :  Npoints,nloc,nstart,idneigh,tmp_rmsd,FullEpsArray,NN_input_weight,output_file,    & 
+                  status_dmap,status_eps,column_eps,cutoff,eps0,current_time
+
 
 implicit none
 

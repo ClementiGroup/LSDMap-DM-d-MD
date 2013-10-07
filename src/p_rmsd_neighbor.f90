@@ -41,8 +41,9 @@ subroutine p_rmsd_neighbor
 use Qsort_Module
 use iso_c_binding
 use ftn_c
-use ModuleParallel
-use ModuleChemistry
+use parallel, only : rank, ierr, comm, displacements, counts
+use data, only : Npoints,Nneigh,Natoms,nloc,nstart,nend,tmpTraj,idneigh,dist,tmp_rmsd,nn_traj,current_time
+
 
 implicit none
 

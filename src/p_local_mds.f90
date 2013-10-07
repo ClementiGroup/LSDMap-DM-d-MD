@@ -67,8 +67,10 @@ subroutine p_local_mds
 use Qsort_Module
 use iso_c_binding
 use ftn_c
-use ModuleChemistry
-use ModuleParallel
+use data, only :  ns,ne,Npoints,dim,Nneigh,Natoms,nloc,nend,nlimit,tmp2,tmpTraj,traj,idneigh,EpsArray,   &
+                 FullEpsArray,ncore,dmds,kmin,dk,neps,seps,deps, current_time
+
+use parallel, only :  size, rank, ierr, comm, counts
 
 implicit none
 
