@@ -12,6 +12,13 @@
 ! 2. Zheng, W., Rohrdanz, M.A., Caflisch, A., Dinner, A.R.,     !
 !    and Clementi, C., J. Phys. Chem. B, 115, 13065-13074, 2011 !
 !---------------------------------------------------------------!
+! LSDMap v1.1                                                               !
+! September 2013  merger of three routines into subroutines     !
+!                 and a main routine                            !      
+!                                                               !
+! E. Breitmoser, EPCC, The University of Edinburgh              !
+!                                                               !
+!---------------------------------------------------------------!
 
 ** File description
 
@@ -21,29 +28,35 @@
 LSDMap.inc: 
   server-specific valuables for makefile
 configure.sh: 
-  script to configure the programs on the servers in Rice University
-prepare_rmsd_neighbor.sh: 
-  script to preprocess the input files for RMSD and nearest neighbor calculation
-prepare_localscale.sh: 
-  script to preprocess the input files for picking local scales
+  script to configure the programs on the servers ion HECToR (www.hector.ac.uk)
+  can be adapted for other servers
+prepare_p_lsdmap.sh: 
+  script to preprocess the input files for RMSD, nearest neighbor and 
+  picking local sclaes calculation
+  creates an ExampleInputFile and an ExampleBatchScript.pbs to run on HECToR
+
 prepare_embed.sh: 
   script to preprocess the input files for embedding new points to the diffusion map space
 
 [LSDMap/src/]
 ----------------------
   source code and the input example for each program
+main.f90:
+ parallel program which contains the following three parallel subroutines
 p_rmsd_neighbor.f90: 
-  parallel program to calculate the RMSD and nearest neighbors
+  parallel subroutine to calculate the RMSD and nearest neighbors
+p_local_mds.f90:
+  parallel subroutine to pick the local scales
+p_wlsdmap.f90:
+  parallel weighted LSDMap subroutine
+
+The following codes are all independent and not steered from main.f90
 s_rmsd_neighbor.f90: 
   serial version
-p_local_mds.f90: 
-  parallel program to pick the local scales
-p_wlsdmap.f90: 
-  parallel weighted LSDMap
 s_wlsdmap.f90: 
   serial version
 p_wlsdmap_embed.f90: 
-  parallel program to embed new points to the diffusion map space
+  parallel program to embed new points to the diffusion map space,
 split_rmsd.f90: 
   the program to preprocess RMSD files for program p_wlsdmap_embed.f90
 
@@ -74,7 +87,7 @@ aladip.gro.tar.gz:
 
 ** How to proceed Weighted LSDMap
    We will show how to proceed LSDMap on the example data set in directory 'example/'.   
-
+ 
 1. Prepare the data set to the accepted format for LSDMap.
    -Decompress the example data from 'example/aladip.gro' to the program directory.
 	> tar -xvf example/aladip.gro.tar.gz
@@ -90,35 +103,45 @@ aladip.gro.tar.gz:
     |                               <the atomic (xyz) coordinates for the last point>   |
 
 2. Set the parameters in file 'run_parameters' according to the comments.
+    This was tested for HECToR (www.hector.ac.uk).
    -For the example data, leave all parameters as in default EXCEPT:
-	number of nodes:   		nodes=
-	number of cores per node:  	ppn=
-	queue name:			queue= 
-    The example data contains 10,000 points, and therefore needs about 
-    10,000^2*12=1.2G memory.  Please make sure the memory on the number of CPUs 
-    is enough for the data set.  In most of the clusters, each CPU has at least 
-    1.5G memory, so the example data set can be calculated with one single CPU.
-    
-3. Calculate the RMSD and nearest neighbor map.
-   -Run 'prepare_rmsd_neighbor.sh' to prepare the input files.
-	> ./prepare_rmsd_neighbor.sh
-   -Submit the pbs script 'rmsd_neighbor.pbs'.
-	> qsub rmsd_neighbor.pbs
-   -The nearest neighbor map file is under directory "neighbor/".
-   -The RMSD files are under directory "rmsd/".  The number of the RMSD 
-    files are the same as the number of CPUs set up in 'run_parameters'.
+        write_rmsd, write_neighbor, write_localscale, depending if you want
+          these intermediate results written out (might be needed if you want 
+          to run the embedding code), all three are of type 'logical', so set 
+          them either to ".true." or ".false."	
+   	total number of MPI tasks:    mppwidth=
+    	number of core per nodes:     mppnppn=
+    	wall time:                    maximum wall clock time required for job
+    	your budget name:             budget to be charged to (contact project PI
+    	                               if unknown)
+    -Run 'prepare_p_lsdmap.sh' to prepare the input file.
+    	 > ./prepare_p_lsdmap.sh
+    -Submit the pbs script:
+        > ./submitlist
 
-3. Calculate the local scales.
-   -Run 'prepare_localscale.sh' to prepare the input files.
-	> ./prepare_localscale.sh
-   -Submit the pbs script:
-	> ./submitlist
-   -Merge the localscale files by running 'merge_localscale_results.sh':
-	> ./merge_localscale_results.sh
+3. There is one input file needed, an example one is 'ExampleInputFile'. It
+    is created automatically by running prepare_p_lsdmap.sh as described
+    above. The entries are
 
-4. Run LSDMap.
-   -Submit the pbs script 'wlsdmap.pbs' for LSDMap.
-	> qsub wlsdmap.pbs
+    in file	    variable name in code
+    --------------------------------------------------	 
+    aladip.xyz      nn_traj
+    1  10000        ns      ne
+    3000            Nneigh
+    1000            norder
+    1500 30 15      dmds    kmin    dk
+    0.0 0.01 0      seps    deps    neps
+    1               ncore
+    0 1             status_dmap     status_eps
+    weight.dat      NN_input_weight
+    aladip.xyz_dif  output_file
+    0.0             cutoff
+    18              column_eps
+
+4. Run LSDMap
+    - Submit the pbs script 'ExampleBatchScript.pbs' for LSDMap.
+         > qsub ExampleBatchScript.pbs 
+      as described in 2. via ./submitlist
 
 5. Results:
    <trajectory file name>_dif.eg 
