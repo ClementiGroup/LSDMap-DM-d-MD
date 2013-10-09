@@ -12,7 +12,11 @@
 ! 2. Zheng, W., Rohrdanz, M.A., Caflisch, A., Dinner, A.R.,     !
 !    and Clementi, C., J. Phys. Chem. B, 115, 13065-13074, 2011 !
 !---------------------------------------------------------------!
-
+!---------------------------------------------------------------!                                                           
+! LSDMap v1.1 - Sept 2013 - Merger Release                      !                                                           
+!                                                               !                                                          
+! Developed by                                                  !                                                          
+!   E.Breitmoser, EPCC, Uonversity of Edinburgh                 !                                                          !---------------------------------------------------------------!                                                           
 !-----------------------------------------------------------------------
 ! Parallel LSDMap
 !
@@ -72,7 +76,12 @@
 !----------------------------------------------------------------------
 
 
-program Weighted_LSDMap
+subroutine Weighted_LSDMap
+
+use parallel, only :  size, rank, ierr, comm
+use data, only :  Npoints,nloc,nstart,idneigh,tmp_rmsd,FullEpsArray,NN_input_weight,output_file,    & 
+                  status_dmap,status_eps,column_eps,cutoff,eps0,current_time
+
 
 implicit none
 
@@ -81,43 +90,36 @@ include 'mpif.h'
 include 'debug.h'
 include 'stat.h'
 
-integer,parameter :: real_kind=8
-
-!
-! MPI valuable
-!
-integer :: comm, nproc, myid, ierr
-
-integer :: NlocPoint
+integer :: NlocPoint,i
 integer, allocatable :: NallPoint(:)
 integer, allocatable :: idxlocPoint(:)
-real(real_kind), allocatable :: Weight(:)
-real(real_kind), allocatable :: LocalScale(:)
-real(real_kind), allocatable :: EV(:,:),EVAll(:,:)
-real(real_kind) :: tmpreal1
-integer :: Npoints, inlen, onlen
-integer :: ndx,idx,jdx,kdx, iternum, sumi, count
+integer, allocatable :: displacements2(:),counts2(:)
+real(kind=8), allocatable :: Weight(:)
+real(kind=8), allocatable :: LocalScale(:),lScale(:)
+real(kind=8), allocatable :: EV(:,:),EVAll(:,:)
+real(kind=8) :: tmpreal1
+integer :: inlen, onlen
+integer :: ndx,idx,jdx,kdx, iternum, sumi, count,reci
 ! eps0: eps0 in nlocal=0 mode (input)
 ! cutoff: sparse matrix cutoff, the entry which is smaller than cutoff will be set as zero
-real(real_kind) :: cutoff, dist, distt, eps0
+real(kind=8) :: distLoc, distt
 ! sumrow: the sum of row
 ! sumloc: the sum of row in one core
 ! vv(:): one column of the basis in one core
-real(real_kind), allocatable :: dloc(:),sumrow(:),sumloc(:),vv(:),v_all(:),ww(:)
+real(kind=8), allocatable :: dloc(:),sumrow(:),sumloc(:),vv(:),v_all(:),ww(:)
 ! tmp_rmsd: temporarily store the rmsd data from the input file
-real,allocatable :: tmp_rmsd(:)
+real,allocatable :: rmsd(:)
 ! sparse storage
 integer, allocatable :: jdxloc(:),iloc(:)
 ! input and output file name
-character(180) :: NN_input_rmsd, NN_input_eps, NN_input_weight, NN_input_loc
-character(200) :: output_file,output
+character(180) :: NN_input_rmsd, NN_input_eps, NN_input_loc
+character(200) :: output
 ! PARACK's tol
-real(real_kind), parameter ::  zero = 0.0D+0
+real(kind=8), parameter ::  zero = 0.0D+0
 ! nspace: the ratio of the space needed for the sparse matrix
-real(real_kind), parameter :: nspace=1.
+real(kind=8), parameter :: nspace=1.
 
-integer :: status_dmap,status_eps,column_eps
-real(real_kind), allocatable :: tmp_eps(:)
+real(kind=8), allocatable :: tmp_eps(:)
 
 !
 !     ARPACK valuable
@@ -138,7 +140,7 @@ parameter       (maxnloc=20000, maxnev=10, maxncv=30,ldv=maxnloc )
 !     | Local Arrays |
 !     %--------------%
 !
-real(real_kind),allocatable :: v(:,:), workl(:),workd(:), d(:,:), resid(:),ax(:)
+real(kind=8),allocatable :: v(:,:), workl(:),workd(:), d(:,:), resid(:),ax(:)
 
 logical,allocatable :: select(:)
 integer,allocatable :: iparam(:), ipntr(:)
@@ -150,19 +152,19 @@ integer,allocatable :: iparam(:), ipntr(:)
 character        bmat*1, which*2
 integer          ido, n, nev, ncv, lworkl, info, j,nconv, maxitr, mode, ishfts
 logical          rvec
-real(real_kind)  tol, sigma
+real(kind=8)  tol, sigma
 !
 !     %----------------------------------------------%
 !     | Local Buffers needed for MPI communication |
 !     %----------------------------------------------%
 !
-real(real_kind),allocatable ::  mv_buf(:)
+real(kind=8),allocatable ::  mv_buf(:)
 !  
 !     %-----------------------------%
 !     | BLAS & LAPACK routines used |
 !     %-----------------------------%
 !
-real(real_kind) pdnorm2 
+real(kind=8) pdnorm2 
 external pdnorm2, daxpy
 !
 !     %---------------------%
@@ -171,49 +173,20 @@ external pdnorm2, daxpy
 !
 intrinsic :: abs
 
-call MPI_init(ierr)
-comm=MPI_COMM_WORLD
-call MPI_comm_size(comm, nproc, ierr)
-call MPI_comm_rank(comm, myid ,ierr)
 
 allocate(v(ldv,maxncv), workl(maxncv*(maxncv+8)),workd(3*maxnloc), d(maxncv,2), resid(maxnloc),ax(maxnloc),mv_buf(maxnloc))
 allocate(select(maxncv))
 allocate(iparam(11), ipntr(11))
 
-if (myid==0) write(6,*) 'LSDMap v1.0 - Aug 01 2012 - Initial Release'
-if (myid==0) write(6,*) 'Program Start...'
+!if (rank==0) write(6,*) 'Subroutine p_wlsdmap Start...'
+if (rank==0) call current_time('Subroutine p_wlsdmap Start...')
+
+NN_input_rmsd = 'aladip.xyz_rmsd'
+NN_input_eps  = 'aladip.xyz_eps'
 
 nev=10
 
-!!
-!! Read input parameters
-!!
-if (myid==0) then
-   read(5,*) status_dmap,status_eps
-   read(5,*) Npoints
-   read(5,*) NN_input_rmsd  
-   if(status_dmap==1) then
-      read(5,*) NN_input_weight
-   else
-      read(5,*)
-   endif
-   read(5,'(a)') output_file
-   read(5,*) cutoff
-   if(status_eps==1) then
-      read(5,*) NN_input_eps,column_eps
-   else
-      read(5,*) eps0
-   endif
-endif
-call MPI_BCAST(Npoints,1,MPI_INTEGER,0,comm,ierr)
-call MPI_BCAST(NN_input_rmsd,200,MPI_CHARACTER,0,comm,ierr)
-call MPI_BCAST(output_file,200,MPI_CHARACTER,0,comm,ierr)
-call MPI_BCAST(cutoff,1,MPI_DOUBLE_PRECISION,0,comm,ierr)
-call MPI_BCAST(status_dmap,1,MPI_INTEGER,0,comm,ierr)
-call MPI_BCAST(status_eps,1,MPI_INTEGER,0,comm,ierr)
-if(status_eps==0) call MPI_BCAST(eps0,1,MPI_DOUBLE_PRECISION,0,comm,ierr)
-
-if (myid == 0) then
+if (rank == 0) then
    if(status_dmap==1) then
       inlen = index(NN_input_weight,' ') - 1
       write(6,'(a,a)')'biased energy read from file ', NN_input_weight(1:inlen)
@@ -234,7 +207,7 @@ endif
 
 ! read weight
 allocate(Weight(Npoints))
-if(myid==0) then
+if(rank==0) then
    if(status_dmap==1)then
       open(10,file=NN_input_weight,status='old')
       do idx=1,Npoints
@@ -251,53 +224,52 @@ else
 endif
 
 ! split data
-NlocPoint=int(Npoints/nproc)
-if(myid<mod(Npoints,nproc)) then
+NlocPoint=int(Npoints/size)
+if(rank<mod(Npoints,size)) then
    NlocPoint=NlocPoint+1
 endif
-allocate(NallPoint(nproc))
+allocate(NallPoint(size))
 call MPI_ALLGATHER(NlocPoint,1,MPI_INTEGER,NallPoint,1,MPI_INTEGER,comm,ierr)
-!call MPI_barrier(comm,ierr)
 
 ! build the index for NlocPoint
-allocate(idxlocPoint(nproc+1))
+allocate(idxlocPoint(size+1))
 idxlocPoint(1)=1
-do idx=2,nproc+1
+do idx=2,size+1
    idxlocPoint(idx)=idxlocPoint(idx-1)+NallPoint(idx-1)
 enddo
 
 ! generate the input file name
 inlen = index(NN_input_rmsd,' ') - 1
-write(NN_input_loc,'(a,a,i7,a,i7)') NN_input_rmsd(1:inlen),'_',9000000+idxlocPoint(myid+1),'_',9000000+idxlocPoint(myid+2)-1
+write(NN_input_loc,'(a,a,i7,a,i7)') NN_input_rmsd(1:inlen),'_',9000000+idxlocPoint(rank+1),'_',9000000+idxlocPoint(rank+2)-1
 
 ! read local scale
 allocate(LocalScale(Npoints))
 
-if(myid==0) then
+if(rank==0) then
    if(status_eps==1)then
       allocate(tmp_eps(column_eps))
-      open(20,file=NN_input_eps,status='old')
       do idx=1,Npoints
-         read(20,*) (tmp_eps(jdx),jdx=1,column_eps)
-         LocalScale(idx)=tmp_eps(column_eps)
+         LocalScale(idx)=FullEpsArray(column_eps,idx)
       enddo
-      close(20)
       deallocate(tmp_eps)
    endif
 endif
+
+deallocate(FullEpsArray)
+
 if(status_eps==1) then 
    call MPI_BCAST(LocalScale,Npoints,MPI_DOUBLE_PRECISION,0,comm,ierr)
 else
    LocalScale=eps0
 endif
-!call MPI_barrier(comm,ierr)
+call MPI_barrier(comm,ierr)
 
 !!
 !! allocate block CSR storage
 !!
 ! CSR: iloc,jdxloc,dloc
 !
-if (myid==0) then
+if (rank==0) then
    write(6,'(a)') 'allocate block CSR storage and create similarity matrix...'   
 endif
 allocate(iloc(NlocPoint+1))
@@ -306,16 +278,13 @@ allocate(dloc(sumi))
 allocate(jdxloc(sumi))
 iloc=0
 count=0
-open(10,file='rmsd/'//NN_input_loc,form='unformatted',status='old',access='direct',recl=Npoints*4)
-allocate(tmp_rmsd(Npoints))
-do jdx=1,NlocPoint
-   ! read rmsd file
-   read(10,rec=jdx) (tmp_rmsd(kdx),kdx=1,Npoints)
+do jdx=1,nloc
+   reci = jdx + nstart -1
    iloc(jdx)=count+1
-   ndx=idxlocPoint(myid+1)+jdx-1
+   ndx=idxlocPoint(rank+1)+jdx-1
    do kdx=1,Npoints
-      dist=tmp_rmsd(kdx)**2
-      distt=Weight(ndx)*Weight(kdx)*exp(-dist/Localscale(ndx)/LocalScale(kdx)/2.)
+      distLoc=tmp_rmsd(kdx,reci)**2  
+      distt=Weight(ndx)*Weight(kdx)*exp(-distLoc/Localscale(ndx)/LocalScale(kdx)/2.)
       if (distt >= cutoff) then
          count=count+1
          dloc(count)=distt
@@ -325,15 +294,13 @@ do jdx=1,NlocPoint
 enddo
 
 iloc(NlocPoint+1)=count+1
-close(10)
-deallocate(tmp_rmsd)
 if(count>sumi) then
-   print *,'Warning: core #',myid,' does not have enough memory to store the sparse matrix'
-   print *,'core #',myid,' has used',count,'/',sumi, ' sparse storage'
+   print *,'Warning: core #',rank,' does not have enough memory to store the sparse matrix'
+   print *,'core #',rank,' has used',count,'/',sumi, ' sparse storage'
    print *,'Please increase the value nspace in the program'
    stop
 endif
-print *,'core #',myid,' has used',count,'/',sumi, '% sparse storage'
+print *,'core #',rank,' has used',count,'/',sumi, '% sparse storage'
 
 ! valuables for normalization
 allocate(sumrow(Npoints))
@@ -347,21 +314,21 @@ do jdx=1,NlocPoint
       sumloc(jdx)=sumloc(jdx)+dloc(kdx)
    enddo
 enddo
-!call MPI_barrier(comm, ierr)
-call MPI_ALLGATHERV(sumloc,NlocPoint,MPI_DOUBLE_PRECISION,sumrow,NallPoint,idxlocPoint(1:nproc)-1,MPI_DOUBLE_PRECISION,comm,ierr)
-if (myid==0) then
+
+call MPI_ALLGATHERV(sumloc,NlocPoint,MPI_DOUBLE_PRECISION,sumrow,NallPoint,idxlocPoint(1:size)-1,MPI_DOUBLE_PRECISION,comm,ierr)
+if (rank==0) then
    write(6,'(a)') 'all the cores finish sum over rows 1, sum has been gathered'
 endif
 
 !!
 !! rescale matrix...
 !!
-if (myid==0) then
+if (rank==0) then
    write(6,'(a)') 'rescale matrix...'
 endif
 do jdx=1,NlocPoint
    do kdx=iloc(jdx),iloc(jdx+1)-1
-      dloc(kdx)=dloc(kdx)*sqrt(Weight(idxlocPoint(myid+1)+jdx-1)*Weight(jdxloc(kdx))/(sumrow(idxlocPoint(myid+1)+jdx-1)*sumrow(jdxloc(kdx))))
+      dloc(kdx)=dloc(kdx)*sqrt(Weight(idxlocPoint(rank+1)+jdx-1)*Weight(jdxloc(kdx))/(sumrow(idxlocPoint(rank+1)+jdx-1)*sumrow(jdxloc(kdx))))
    enddo
 enddo
 
@@ -375,19 +342,19 @@ do jdx=1,NlocPoint
    enddo
 enddo
 !call MPI_barrier(comm, ierr)
-call MPI_ALLGATHERV(sumloc,NlocPoint,MPI_DOUBLE_PRECISION,sumrow,NallPoint,idxlocPoint(1:nproc)-1,MPI_DOUBLE_PRECISION,comm,ierr)
-if (myid==0) then
+call MPI_ALLGATHERV(sumloc,NlocPoint,MPI_DOUBLE_PRECISION,sumrow,NallPoint,idxlocPoint(1:size)-1,MPI_DOUBLE_PRECISION,comm,ierr)
+if (rank==0) then
    write(6,'(a)') 'all the cores finish sum over rows 1, sum has been gathered'
 endif
 !!
 !! rescale matrix...
 !!
-if (myid==0) then
+if (rank==0) then
    write(6,'(a)') 'rescale matrix...'
 endif
 do jdx=1,NlocPoint
    do kdx=iloc(jdx),iloc(jdx+1)-1
-      dloc(kdx)=dloc(kdx)/sqrt(sumrow(idxlocPoint(myid+1)+jdx-1)*sumrow(jdxloc(kdx)))
+      dloc(kdx)=dloc(kdx)/sqrt(sumrow(idxlocPoint(rank+1)+jdx-1)*sumrow(jdxloc(kdx)))
    enddo
 enddo
 deallocate(sumloc)
@@ -411,7 +378,7 @@ allocate(v_all(NPoints))
 !       OF THE DIFFUSION MATRIX 
 !--------------------------------------------------------------
 
-if (myid == 0) then
+if (rank == 0) then
    write(6,'(a)') 'finished creating diffusion matrix... start diagonalization...'
 endif
 
@@ -526,7 +493,7 @@ if (ido .eq. -1 .or. ido .eq. 1) then
 !!
 !! gather a column of vector from each core
 !!
-   call MPI_ALLGATHERV(vv, NlocPoint, MPI_DOUBLE_PRECISION, v_all, NallPoint, idxlocPoint(1:nproc)-1, MPI_DOUBLE_PRECISION, comm,ierr)   
+   call MPI_ALLGATHERV(vv, NlocPoint, MPI_DOUBLE_PRECISION, v_all, NallPoint, idxlocPoint(1:size)-1, MPI_DOUBLE_PRECISION, comm,ierr)   
 
    call av (sumi, NlocPoint, Npoints,dloc, jdxloc, iloc, v_all, ww)
    
@@ -556,7 +523,7 @@ if ( info .lt. 0 ) then
 !        | documentation in PSSAUPD.|
 !        %--------------------------%
 !
-   if ( myid .eq. 0 ) then
+   if ( rank .eq. 0 ) then
       print *, ' '
       print *, ' Error with _saupd, info = ', info
       print *, ' Check documentation in _saupd '
@@ -575,7 +542,7 @@ else
 !        %-------------------------------------------%
 !           
    rvec = .true.
-   if (myid==0) then
+   if (rank==0) then
       write(6,'(a)') 'no fatal errors occurred in iteration'
       write(6,'(a)') 'start calling psseupd subroutine...'
    endif
@@ -599,7 +566,7 @@ else
 !            %------------------------------------%
 !
 !
-      if ( myid .eq. 0 ) then
+      if ( rank .eq. 0 ) then
          print *, ' '
          print *, ' Error with _seupd, info = ', ierr
          print *, ' Check the documentation of _seupd. '
@@ -607,7 +574,7 @@ else
       endif
    else
       nconv =  iparam(5)
-      if (myid==0) then
+      if (rank==0) then
          write(6,'(a)')'compute the residual norm...'
       endif
       do j=1, nconv
@@ -629,7 +596,7 @@ else
          !!
          !! gather a column of vector from each core
          !!
-         call MPI_ALLGATHERV(v, NlocPoint, MPI_DOUBLE_PRECISION, v_all, NallPoint, idxlocPoint(1:nproc)-1, MPI_DOUBLE_PRECISION, comm,ierr)   
+         call MPI_ALLGATHERV(v, NlocPoint, MPI_DOUBLE_PRECISION, v_all, NallPoint, idxlocPoint(1:size)-1, MPI_DOUBLE_PRECISION, comm,ierr)   
 
          call av (sumi, NlocPoint, Npoints,dloc, jdxloc, iloc, v_all, ax)
 
@@ -650,7 +617,7 @@ else
 !        | Print additional convergence information |
 !        %------------------------------------------%
 !
-   if (myid .eq. 0)then
+   if (rank .eq. 0)then
       if ( info .eq. 1) then
          print *, ' '
          print *, ' Maximum number of iterations reached.'
@@ -665,7 +632,7 @@ else
       print *, '====== '
       print *, ' '
       print *, ' Size of the matrix is ', n
-      print *, ' The number of processors is ', nproc
+      print *, ' The number of processors is ', size
       print *, ' The number of Ritz values requested is ', nev
       print *, ' The number of Arnoldi vectors generated',' (NCV) is ', ncv
       print *, ' What portion of the spectrum: ', which
@@ -691,7 +658,7 @@ call MPI_barrier(comm, ierr)
 
 nconv =  iparam(5)
 
-if (myid==0) then
+if (rank==0) then
    write(6,'(a)') 'finish diagonalization... start postprocessing....'
 endif
 
@@ -699,18 +666,18 @@ endif
 allocate(EV(NlocPoint,nev))
 do jdx=1,nconv
    do idx=1,NlocPoint
-      EV(idx,jdx)=sumrow(idxlocPoint(myid+1)-1+idx)*v(idx,jdx)
+      EV(idx,jdx)=sumrow(idxlocPoint(rank+1)-1+idx)*v(idx,jdx)
    enddo
 enddo
-if (myid==0) then
+if (rank==0) then
    allocate(EVAll(Npoints,nev))
 endif
 do jdx=1,nconv
-   call MPI_GATHERV(EV(:,jdx),NlocPoint,MPI_DOUBLE_PRECISION,EVAll(:,jdx),NallPoint,idxlocPoint(1:nproc)-1,MPI_DOUBLE_PRECISION,0,comm,ierr)
+   call MPI_GATHERV(EV(:,jdx),NlocPoint,MPI_DOUBLE_PRECISION,EVAll(:,jdx),NallPoint,idxlocPoint(1:size)-1,MPI_DOUBLE_PRECISION,0,comm,ierr)
 enddo
 
 ! normalization
-if(myid==0) then
+if(rank==0) then
    do jdx=1,nconv
       tmpreal1=0.
       do kdx=1,Npoints
@@ -727,7 +694,7 @@ if(myid==0) then
 endif
 
 ! write the eigenvectors to the file
-if(myid==0) then
+if(rank==0) then
    write(output,'(a,a)') output_file(1:onlen),'.ev'
    open(50,file=output,status='unknown')
    do idx=1,Npoints
@@ -738,7 +705,7 @@ if(myid==0) then
 endif
 
 ! write the eigenvalues to the file
-if(myid==0) then
+if(rank==0) then
    write(output,'(a,a)') output_file(1:onlen),'.eg'
    open(50,file=output,status='unknown')
    do idx=1,nconv
@@ -748,8 +715,9 @@ if(myid==0) then
    close(50)
 endif
 
+
 ! deallocate all the valuables in the loop
-if(myid==0) then
+if(rank==0) then
    deallocate(EVAll)
 endif
 deallocate(sumrow)
@@ -764,9 +732,9 @@ deallocate(vv)
 deallocate(ww)
 deallocate(v_all)
 
-call MPI_finalize(ierr)
+if(rank==0) call current_time('Subroutine p_wlsdmap ends...')
 
-end program Weighted_LSDMap
+end subroutine Weighted_LSDMap
 
 !!-------------------------------------------------------------------
 !!     matrix vector multiplication subroutines
