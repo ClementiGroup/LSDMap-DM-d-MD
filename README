@@ -12,7 +12,7 @@
 ! 2. Zheng, W., Rohrdanz, M.A., Caflisch, A., Dinner, A.R.,     !
 !    and Clementi, C., J. Phys. Chem. B, 115, 13065-13074, 2011 !
 !---------------------------------------------------------------!
-! LSDMap v1.1                                                               !
+!                                                               !
 ! September 2013  merger of three routines into subroutines     !
 !                 and a main routine                            !      
 !                                                               !
@@ -28,13 +28,13 @@
 LSDMap.inc: 
   server-specific valuables for makefile
 configure.sh: 
-  script to configure the programs on the servers ion HECToR (www.hector.ac.uk)
-  can be adapted for other servers
+  script to configure the programs on the servers in Rice University
 prepare_p_lsdmap.sh: 
-  script to preprocess the input files for RMSD, nearest neighbor and 
-  picking local sclaes calculation
-  creates an ExampleInputFile and an ExampleBatchScript.pbs to run on HECToR
-
+  script to generate the ExampleInputFile and the ExampleBatchScript
+  to be used with the parallel main code which calculates the RMSD/nearest
+  neighbors, pciks the local sclaes and the weighted LSDMap.
+run_paramters:
+  file to be used by prepare_p_lsdmap.sh
 prepare_embed.sh: 
   script to preprocess the input files for embedding new points to the diffusion map space
 
@@ -51,10 +51,6 @@ p_wlsdmap.f90:
   parallel weighted LSDMap subroutine
 
 The following codes are all independent and not steered from main.f90
-s_rmsd_neighbor.f90: 
-  serial version
-s_wlsdmap.f90: 
-  serial version
 p_wlsdmap_embed.f90: 
   parallel program to embed new points to the diffusion map space,
 split_rmsd.f90: 
@@ -105,43 +101,40 @@ aladip.gro.tar.gz:
 2. Set the parameters in file 'run_parameters' according to the comments.
     This was tested for HECToR (www.hector.ac.uk).
    -For the example data, leave all parameters as in default EXCEPT:
-        write_rmsd, write_neighbor, write_localscale, depending if you want
-          these intermediate results written out (might be needed if you want 
-          to run the embedding code), all three are of type 'logical', so set 
-          them either to ".true." or ".false."	
    	total number of MPI tasks:    mppwidth=
     	number of core per nodes:     mppnppn=
     	wall time:                    maximum wall clock time required for job
     	your budget name:             budget to be charged to (contact project PI
     	                               if unknown)
-    -Run 'prepare_p_lsdmap.sh' to prepare the input file.
-    	 > ./prepare_p_lsdmap.sh
+    -Run 'prepare_localscaleEPCC.sh' to prepare the input file.
+    	 > ./prepare_localscale.sh
     -Submit the pbs script:
         > ./submitlist
 
 3. There is one input file needed, an example one is 'ExampleInputFile'. It
-    is created automatically by running prepare_p_lsdmap.sh as described
+    is created automatically by running prepare_localscalePCC.sh as described
     above. The entries are
 
-    in file	    variable name in code
-    --------------------------------------------------	 
-    aladip.xyz      nn_traj
-    1  10000        ns      ne
-    3000            Nneigh
-    1000            norder
-    1500 30 15      dmds    kmin    dk
-    0.0 0.01 0      seps    deps    neps
-    1               ncore
-    0 1             status_dmap     status_eps
-    weight.dat      NN_input_weight
-    aladip.xyz_dif  output_file
-    0.0             cutoff
-    18              column_eps
+    in file	           variable name in code
+    -----------------------------------------------------------------
+    .true. .true. .true.   write_rmsd write_neighbor write_localscale	 
+    aladip.xyz      	   nn_traj
+    1  10000        	   ns      ne
+    3000            	   Nneigh
+    1000            	   norder
+    1500 30 15      	   dmds    kmin    dk
+    0.0 0.01 0      	   seps    deps    neps
+    1               	   ncore
+    0 1             	   status_dmap     status_eps
+    weight.dat      	   NN_input_weight
+    aladip.xyz_dif  	   output_file
+    0.0             	   cutoff
+    18              	   column_eps
 
 4. Run LSDMap
     - Submit the pbs script 'ExampleBatchScript.pbs' for LSDMap.
          > qsub ExampleBatchScript.pbs 
-      as described in 2. via ./submitlist
+      as described in 2b. via ./submitlist
 
 5. Results:
    <trajectory file name>_dif.eg 
@@ -188,11 +181,5 @@ Note:
    number of points in the old data set.  The total number of points 
    to add should be divisible by the number of points to add for one loop.
 
-
-** Why is there a serial version
-
--In most cases, you can use the parallel version serially.
--If you want to perform LSDMap on large number of small data sets, 
- serial version is faster without initializing MPI.
 
 
