@@ -1,379 +1,403 @@
+!---------------------------------------------------------------!                          \
+! Function  subroutine for LSDMap code                          !                           
+!                                                               !                           
+! Parallel Local PCA analysis                                   !
+!---------------------------------------------------------------!                          \
+                                                                                            
+! Input                                                         !                           
+!                                                               !                           
+!                                                               !                           
+! Output                                                        !                           
+! 1. Local scale as the input of p_wlsdmap,                     !
+!    if 'write_localscale' is true                              !
+!                                                               !                           
+!---------------------------------------------------------------!                           
+! Develop log                                                   !                           
+!                                                               !                           
+! LSDMap v1.0 - Aug 01 2012 - Initial Release                   !                           
+!                                                               !                           
+! Developed by                                                  !                           
+!    Wenwei Zheng       wz7@rice.edu                            !                           
+!    Mary Rohrdanz      mar3@rice.edu                           !                           
+!    Cecilia Clementi   cecilia@rice.edu                        !                           
+!                                                               !                           
+! Please reference the papers below if you use LSDMap:          !                           
+! 1. Rohrdanz, M.A., Zheng, W., Maggioni, M., and Clementi, C., !                           
+!    J. Chem. Phys., 134, 124116, 2011                          !                           
+! 2. Zheng, W., Rohrdanz, M.A., Caflisch, A., Dinner, A.R.,     !                           
+!    and Clementi, C., J. Phys. Chem. B, 115, 13065-13074, 2011 !                           
+!                                                               !                           
+!                                                               !
+! WZ Aug 30 2011                                                !
+! Take the original trajectory and nearest neighbor graph as the!
+!  input. Share the trajectory in every <ncore> CPUs as a small !
+!  group.                                                       !
+!                                                               !
+! WZ Jul 28 2011                                                !
+! 1. Implement random projection multidimensional scaling.      !
+! The old classical MDS function is still at the end of the     !
+!  program.                                                     !
+! 2. Implement the idea to use k1 of the first k neighbors for  !
+!    the  multidimensional scaling as an approximation of the   !
+!    spectra of all the first k neighbors.  The accuracy depends!
+!    on the ratio k1/k. If k1 equals to k, the results are the  !
+!    same as the old version.                                   !
+!                                                               !
+! WZ Jan 22 2010                                                !
+! Add polynomial fit to the spectra.                            !
+! Picking local scale with the help of spectra gap and first    !
+! derivative of spectra.                                        !
+!                                                               !
+! E.Breitmoser, EPCC, University of Edinburgh                   ! 
+! Sept. 2013 converted into a subroutine, steered from main.f90 !
 !---------------------------------------------------------------!
-! LSDMap v1.0 - Aug 01 2012 - Initial Release                   !
-!	                                                        !
-! Developed by						        !
-!    Wenwei Zheng       wz7@rice.edu			        !
-!    Mary Rohrdanz      mar3@rice.edu			        !
-!    Cecilia Clementi   cecilia@rice.edu			!
-!      							        !
-! Please reference the papers below if you use LSDMap:	        !
-! 1. Rohrdanz, M.A., Zheng, W., Maggioni, M., and Clementi, C., ! 
-!    J. Chem. Phys., 134, 124116, 2011			        !
-! 2. Zheng, W., Rohrdanz, M.A., Caflisch, A., Dinner, A.R.,     !
-!    and Clementi, C., J. Phys. Chem. B, 115, 13065-13074, 2011 !
-!---------------------------------------------------------------!
-! LSDMap v1.1 - Sept 2013 - Merger Release                      !                                                         
-!                                                               !                                                          
-! Developed by                                                  !                                                          
-!   E.Breitmoser, EPCC, Uonversity of Edinburgh                 !
-!---------------------------------------------------------------!
-
-! Parallel Local PCA analysis
-!
-! Input
-! 1. Name of the trajectory
-! 2. Name of the nearest neighboring map from p_rmsd_neighbor
-! 3. Start and end point ID
-! 4. Job ID
-! 5. Number of neighbors, number of point for MDS,
-!    start point for the MDS spectra, the step size for the MDS spectra
-! 6. cutoff for the first derivative of the MDS spectra
-! 7. number of CPUs to share the trajectory
-!
-! See "local_mds.input_sample" for an example of input.
-!
-! Output
-! Local scale as the input of p_wlsdmap
-! 
-! Please reference the papers below if you use LSDMap:
-! 1. Rohrdanz, M.A., Zheng, W., Maggioni, M., and Clementi, C., 
-!    J. Chem. Phys., 134, 124116, 2011
-! 2. Zheng, W., Rohrdanz, M.A., Caflisch, A., Dinner, A.R., and Clementi, C.,
-!    J. Phys. Chem. B, 115, 13065-13074, 2011
-!
-! WZ Jul 25 2012
-!-----------------------------------------------------------------------
-
-!----------------------------------------------------------------------
-! Develop log
-!
-! WZ Aug 30 2011
-! Take the original trajectory and nearest neighbor graph as the input.
-! Share the trajectory in every <ncore> CPUs as a small group.
-!
-! WZ Jul 28 2011
-! 1. Implement random projection multidimensional scaling.
-! The old classical MDS function is still at the end of the program.
-! 2. Implement the idea to use k1 of the first k neighbors for the 
-! multidimensional scaling as an approximation of the spectra of 
-! all the first k neighbors.  The accuracy depends on the ratio k1/k.
-! If k1 equals to k, the results are the same as the old version.
-!
-! WZ Jan 22 2010
-! Add polynomial fit to the spectra.
-! Picking local scale with the help of spectra gap and first derivative
-! of spectra.
-! 
-!-----------------------------------------------------------------------
 
 subroutine p_local_mds
 
-use Qsort_Module
-use iso_c_binding
-use ftn_c
-use data, only :  ns,ne,Npoints,dim,Nneigh,Natoms,nloc,nend,nlimit,traj,norder,idneigh,EpsArray,   &
-                 FullEpsArray,nn_traj,ncore,dmds,kmin,dk,neps,seps,deps, current_time,write_localscale
+  use Qsort_Module
+  use iso_c_binding
+  use ftn_c
+  use data, only :  ns,ne,Npoints,dim,Nneigh,Natoms,nloc,nend,nlimit,traj,norder,idneigh,EpsArray,   &
+       FullEpsArray,nn_traj,ncore,dmds,kmin,dk,neps,seps,deps, current_time,write_localscale
+  
+  use parallel, only :  size, rank, ierr, comm, counts, trace_exit
+  
+  implicit none
+  
+  include 'mpif.h'
+  
+  integer :: ntotal
+  integer :: color1
+  integer :: key1
+  integer :: subcomm1
+  integer :: color2
+  integer :: key2
+  integer :: subcomm2
+  integer :: kmax
+  integer :: inlen
+  integer :: it_rpmds
+  integer :: d_rpmds
+  integer :: mdx
+  integer :: idx
+  integer :: jdx
+  integer :: kdx
+  integer :: stepsize
+  real(kind=8) :: sumall
+  integer :: tmp_int1
+  real(kind=8),allocatable :: distLocal(:,:)
+  real(kind=8),allocatable :: anapca(:,:)
+  integer,allocatable :: cneighbor(:)
+  integer,allocatable :: idneighbor(:)
+  integer,allocatable :: tmpneighbor(:)
+  integer,allocatable :: neighbor(:,:)
+  real(kind=8),allocatable :: eigval(:)
+  real(kind=8),allocatable :: coor(:,:)
+  real(kind=8),allocatable :: tdist(:,:)
+  character(200) :: output
+  character(30) :: tmp_text
+  integer,parameter :: dspec=30
+  integer,parameter :: dnev=30
+  integer :: smax
+  real(kind=8),dimension(2) :: res_real
+  integer,dimension(3) :: res_int
+  real(kind=8),allocatable :: vx(:)
+  real(kind=8),allocatable :: xx(:,:)
+  real(kind=8),allocatable :: yy(:,:)
+  real(kind=8),allocatable :: rot(:)
+  real(kind=8),allocatable :: weight(:)
+  real(kind=8):: ceps
+  integer :: nloctraj
+  integer :: nstraj
+  integer :: netraj
+  integer :: nloc_neighbor
+  integer,allocatable :: nstrajall(:)
+  integer,allocatable :: point_neighbor(:)
+  integer,allocatable :: nlocall_neighbor(:)
+  real,allocatable :: loctraj(:,:)
+  real,allocatable :: locpicktraj(:,:)
+  real,allocatable :: picktraj(:,:)
+  real,allocatable :: ctraj(:,:)
+  integer,parameter :: sizeofinteger=4  
+  integer :: mynstart
+  integer :: mynend
+  integer :: mynloc
+  integer :: i 
+  integer :: myeps
+  integer, allocatable :: dspls(:)
+  
+  if (rank==0) call current_time('subroutine p_local_mds start')
+  
+  kmax=dmds
+  smax=(kmax-kmin)/dk+1
+  
+  ! Split the processors into small groups
+  ! the first type of spliting
+  ! <0 1 2> <3 4 5> <6 7 8>...
+  color1=int(rank/ncore/1.)
+  key1=mod(rank,ncore)
+  call MPI_COMM_SPLIT(comm,color1,key1,subcomm1,ierr)
+  call trace_exit("MPI_Split for color1 failed",ierr)
+  ! The second type of spliting
+  ! <0 3 6> <1 4 7> <2 5 8>...
+  color2=mod(rank,ncore)
+  key2=int(rank/ncore/1.)
+  call MPI_COMM_SPLIT(comm,color2,key2,subcomm2,ierr)
+  call trace_exit("MPI_Split for color2 failed",ierr)
 
-use parallel, only :  size, rank, ierr, comm, counts
+  ! Split data
+  ntotal=ne-ns+1
 
-implicit none
+  if(rank>=mod(ntotal,size)) then
+     mynloc=floor(1.*ntotal/size)
+     mynend=ne-(size-rank-1)*mynloc
+     mynstart=mynend-mynloc+1
+  else
+     mynloc=floor(1.*ntotal/size)+1
+     mynstart=ns+rank*mynloc
+     mynend=mynstart+mynloc-1
+  endif
+  
+  myeps = 5*neps + 1
+  
+  if(rank==0)then
+     allocate(dspls(0:size-1)) 
+     dspls(0) = 0
+     do i = 1, size-1
+        dspls(i) = dspls(i-1) + counts(i-1)*myeps
+     enddo
+  endif
+  
+  
+  allocate(neighbor(Nneigh,nloc))
+  do idx = 1,nloc
+     do jdx = 1,Nneigh
+        neighbor(jdx,idx) = idneigh(jdx,idx)
+     enddo
+  enddo
+  
+  ! Write status
+  if(rank==size-1) then
+     write(*,*)'From subroutine p_local_mds:'
+     write(*,*)'number of points in dataset = ',Npoints
+     write(*,*)'original dimension = ',dim
+     write(*,*)'number of nearest neighbors used = ', Nneigh
+     write(*,*)'from ',ns,' to ',ne
+     write(*,*)'dmds=',dmds,'kmin=',kmin,' kmax=',kmax,' dk=',dk
+     write(*,*)'number of cores = ',size
+     write(*,*)'points per core = ',nloc,'~',nloc+1
+     write(*,*)'number of cores per group = ',ncore
+     write(*,'(a,f5.2,a,f5.2,a,f5.2)')'cutoff = ',seps,':',deps,':',seps+(neps-1)*deps
+  endif
+  
+  ! Read trajectory in every <ncore> CPUs
+  if(rank==0) call current_time('start reading trajectory')
+  nloctraj=floor(1.*Npoints/ncore)
 
-include 'mpif.h'
+  if(key1>=mod(Npoints,ncore)) then
+     netraj=Npoints-(ncore-key1-1)*nloctraj
+     nstraj=netraj-nloctraj+1
+  else
+     nloctraj=nloctraj+1
+     nstraj=1+key1*nloctraj
+     netraj=nstraj+nloctraj-1
+  endif
 
-integer :: ntotal,color1,key1,subcomm1,color2,key2,subcomm2
-integer :: kmax,inlen,it_rpmds,d_rpmds
-integer :: mdx,idx,jdx,kdx,stepsize
-real(kind=8) :: sumall
-integer :: tmp_int1
-!integer,allocatable :: nlocall(:),idxlocPoint(:)
-real(kind=8),allocatable :: distLocal(:,:)
-real(kind=8),allocatable :: anapca(:,:)
-integer,allocatable :: cneighbor(:),idneighbor(:),tmpneighbor(:),neighbor(:,:)
-real(kind=8),allocatable :: eigval(:)
-real(kind=8),allocatable :: coor(:,:)
-real(kind=8),allocatable :: tdist(:,:)
-character(200) :: output
-character(30) :: tmp_text
-integer,parameter :: dspec=30,dnev=30
-integer :: smax
-real(kind=8),dimension(2) :: res_real
-integer,dimension(3) :: res_int
-real(kind=8),allocatable :: vx(:),xx(:,:),yy(:,:),rot(:),weight(:)
-real(kind=8):: ceps
-integer :: nloctraj,nstraj,netraj,nloc_neighbor
-integer,allocatable :: nstrajall(:),point_neighbor(:),nlocall_neighbor(:)
-real,allocatable :: loctraj(:,:)
-real,allocatable :: locpicktraj(:,:),picktraj(:,:),ctraj(:,:)
-integer,parameter :: sizeofinteger=4
+  allocate(nstrajall(size))
+  call MPI_ALLGATHER(nstraj,1,MPI_INTEGER,nstrajall,1,MPI_INTEGER,comm,ierr)
+  call trace_exit("MPI_Allgather for nstraj failed",ierr)
 
+  allocate(loctraj(dim,nloctraj))
+  
+  !if(rank<ncore)then  !EYB:: Checl what happens if ncore > 1
+  do idx=nstraj,netraj
+     do jdx = 1, dim
+        loctraj(jdx,idx-nstraj+1) = traj(mod((jdx-1),3)+1,((idx-1)*dim/3)+((jdx-1)/3)+1)
+     enddo
+  enddo
+  !endif
+  
+  !call MPI_barrier(comm,ierr)
+  !call MPI_BCAST(loctraj,dim*nloctraj,MPI_REAL,0,subcomm2,ierr)
+  
+  ! Define output file name                                                      
+  if(write_localscale) then
+     inlen=index(nn_traj,' ') - 1
+     write(output,'(a,a,i4,a,i5)') nn_traj(1:inlen),'_eps_',norder,'_00',rank+10000
+     open(51,file='localscale/'//output,status='unknown')
+  endif
+  
+  ! Allocate storage
+  allocate(distLocal(dmds,dmds))
+  allocate(cneighbor(dmds))
+  allocate(idneighbor(dmds))
+  allocate(point_neighbor(ncore))
+  allocate(nlocall_neighbor(ncore))
+  allocate(picktraj(dim,dmds))
+  allocate(ctraj(dim,dmds))
+  allocate(xx(Natoms,3))
+  allocate(yy(Natoms,3))
+  allocate(rot(9))
+  allocate(weight(Natoms))
+  
+  weight=1.
+  
+  it_rpmds=1
+  d_rpmds=2
+  stepsize=floor(Nneigh/dmds/1.)
+  
+  allocate(EpsArray(myeps,mynstart:mynend))
+  
+  do idx=mynstart,mynstart+nlimit-1
 
-integer :: mynstart, mynend,mynloc,i, myeps
-integer, allocatable :: dspls(:)
+     if (rank==0) then
+        write(tmp_text,'(a,i7)') 'start processing point ',idx
+        call current_time(tmp_text)
+     endif
 
-if (rank==0) call current_time('subroutine p_local_mds start')
+     if(idx<=nend) then
+        ! Pick <dmds> neighbors from <Nneigh> neighbors
+        do jdx=1,dmds
+           cneighbor(jdx)=neighbor(stepsize*(jdx-1)+1,idx-mynstart+1)
+        enddo
+        ! Get trajectory
+        ! Sort the neighbor list
+        idneighbor=(/(jdx,jdx=1,dmds,1)/)
+        call iQsort(cneighbor,idneighbor)
+     else
+        ! If the current CPU ends, to avoid errors in the next data sharing block,
+        ! set all the neighbors the first point
+        cneighbor=1
+     endif
 
-kmax=dmds
-smax=(kmax-kmin)/dk+1
+     do jdx=0,ncore-1
+        allocate(tmpneighbor(dmds))
+        tmpneighbor=cneighbor
+        call MPI_BCAST(tmpneighbor,dmds,MPI_INTEGER,jdx,subcomm1,ierr)
+        call trace_exit("MPI_Bcast for tmpneighbor failed",ierr)
+        ! Get the pointer to the neighbor list
+        tmp_int1=ncore ! The current rank of core in the subgroup to find the beginning
+        do kdx=dmds,1,-1
+           do while(nstrajall(tmp_int1)>tmpneighbor(kdx))
+              point_neighbor(tmp_int1)=kdx+1
+              tmp_int1=tmp_int1-1
+           enddo
+        enddo
+        point_neighbor(1)=1
+        do kdx=1,ncore-1
+           nlocall_neighbor(kdx)=point_neighbor(kdx+1)-point_neighbor(kdx)
+        enddo
+        nlocall_neighbor(ncore)=dmds-point_neighbor(ncore)+1
+        nloc_neighbor=nlocall_neighbor(key1+1)
+        allocate(locpicktraj(dim,nloc_neighbor))
+        do kdx=1,nloc_neighbor
+           locpicktraj(:,kdx)=loctraj(:,tmpneighbor(point_neighbor(key1+1)+kdx-1)-nstraj+1)
+        enddo
+        call MPI_GATHERV(locpicktraj,dim*nloc_neighbor,MPI_REAL,picktraj,dim*nlocall_neighbor, &
+             dim*(point_neighbor-1),MPI_REAL,jdx,subcomm1,ierr)
+        call trace_exit("MPI_Gatherv for locpicktraj failed",ierr)
+        deallocate(locpicktraj)
+        deallocate(tmpneighbor)
+     enddo ! Closing jdx=0,ncore-1
 
-! split the processors into small groups
-! the first type of spliting
-! <0 1 2> <3 4 5> <6 7 8>...
-color1=int(rank/ncore/1.)
-key1=mod(rank,ncore)
-call MPI_COMM_SPLIT(comm,color1,key1,subcomm1,ierr)
-! the second type of spliting
-! <0 3 6> <1 4 7> <2 5 8>...
-color2=mod(rank,ncore)
-key2=int(rank/ncore/1.)
-call MPI_COMM_SPLIT(comm,color2,key2,subcomm2,ierr)
+     if(idx<=nend)then
+        ! Get trajectory in the original neighbor list order
+        do jdx=1,dmds
+           ctraj(:,idneighbor(jdx))=picktraj(:,jdx)
+        enddo
+        ! Calculate rmsd
+        do jdx=1,dmds
+           do kdx=jdx+1,dmds
+              xx(:,1)=ctraj(1:dim-2:3,jdx)
+              xx(:,2)=ctraj(2:dim-1:3,jdx)
+              xx(:,3)=ctraj(3:dim:3,jdx)
+              yy(:,1)=ctraj(1:dim-2:3,kdx)
+              yy(:,2)=ctraj(2:dim-1:3,kdx)
+              yy(:,3)=ctraj(3:dim:3,kdx)
+              sumall=calcrmsdrotationalmatrix(Natoms,xx(:,1),xx(:,2),xx(:,3),yy(:,1),&
+                   yy(:,2),yy(:,3),rot,weight)
+              sumall=sumall**2
+              distLocal(jdx,kdx)=sumall
+              distLocal(kdx,jdx)=sumall
+           enddo
+        enddo
+        do jdx=1,dmds
+           distLocal(jdx,jdx)=0.
+        enddo
+        ! MDS
+        allocate(anapca(smax,dspec))
+        allocate(vx(smax))
+        anapca=0.
+        do jdx=1,smax
+           vx(jdx)=sqrt(distLocal(1,(jdx-1)*dk+kmin))
+        enddo
+        do jdx=kmin,kmax,dk
+           allocate(eigval(dnev))
+           allocate(coor(jdx,dnev))
+           allocate(tdist(jdx,jdx))
+           tdist=distLocal(1:jdx,1:jdx)
+           call rpmds(tdist,jdx,dnev,eigval,it_rpmds,d_rpmds)
+           deallocate(tdist)
+           mdx=(jdx-kmin)/dk+1
+           if (jdx<dnev .and. jdx<dspec) then
+              do kdx=1,jdx
+                 anapca(mdx,kdx)=eigval(kdx)/sqrt(real(jdx))
+              enddo
+           else
+              do kdx=1,dspec
+                 anapca(mdx,kdx)=eigval(kdx)/sqrt(real(jdx))
+              enddo
+           endif
+           deallocate(eigval)
+           deallocate(coor)
+        enddo
+        if (write_localscale) write(51,'(i7,1x)',advance='no') idx
+        EpsArray(1,idx) = idx
+        do jdx=1,neps
+           ceps=seps+(jdx-1)*deps
+           call pickeps(anapca,vx,smax,dspec,res_real,res_int,ceps)
+           EpsArray((jdx-1)*5+2,idx) = ((res_int(1)-1)*dk+kmin-1)*stepsize+1
+           EpsArray((jdx-1)*5+3,idx) = res_real(1)
+           EpsArray((jdx-1)*5+4,idx) = res_real(2)
+           EpsArray((jdx-1)*5+5,idx) = res_int(2)
+           EpsArray((jdx-1)*5+6,idx) = res_int(3)
+           if (write_localscale) write(51,'(i7,1x,f10.6,1x,f10.6,1x,i2,1x,i2,1x)',advance='no') &
+                ((res_int(1)-1)*dk+kmin-1)*stepsize+1,res_real(1),res_real(2),res_int(2),res_int(3)
+        enddo
+        if (write_localscale) write(51,*)
+        deallocate(vx)
+        deallocate(anapca)
+     endif ! Closing 'if(idx<=nend)'
+  enddo ! Closing 'do idx=mynstart,mynstart+nlimit-1'
+  
+  if (rank == size-1 .and. nend ==Npoints .and. write_localscale) then
+     write(51,'(a,f10.6,a,f10.6,a,f10.6)') '% the first derivative cutoff = ', seps,':',deps,':',&
+          seps+(neps-1)*deps
+     write(51,'(a)') '% id/k_1/eps_1/eiggap_1/intdim1_1/intdim2_1/k_2/eps_2/eiggap_2/intdim1_2/intdim2_2/...'
+  endif
 
-! split data
-ntotal=ne-ns+1
-if(rank>=mod(ntotal,size)) then
-   mynloc=floor(1.*ntotal/size)
-   mynend=ne-(size-rank-1)*mynloc
-   mynstart=mynend-mynloc+1
-else
-   mynloc=floor(1.*ntotal/size)+1
-   mynstart=ns+rank*mynloc
-   mynend=mynstart+mynloc-1
-endif
-
-myeps = 5*neps + 1
-
-if(rank==0)then
-   allocate(dspls(0:size-1))  ! deallocate later
-   dspls(0) = 0
-   do i = 1, size-1
-      dspls(i) = dspls(i-1) + counts(i-1)*myeps
-   enddo
-endif
-
-
-allocate(neighbor(Nneigh,nloc))
-do idx = 1,nloc
-   do jdx = 1,Nneigh
-      neighbor(jdx,idx) = idneigh(jdx,idx)
-   enddo
-enddo
-
-! write status
-if(rank==size-1) then
-   print *,'From subroutine p_local_mds:'
-   print *,'number of points in dataset = ',Npoints
-   print *,'original dimension = ',dim
-   print *,'number of nearest neighbors used = ', Nneigh
-   print *,'from ',ns,' to ',ne
-   print *,'dmds=',dmds,'kmin=',kmin,' kmax=',kmax,' dk=',dk
-   print *,'number of cores = ',size
-   print *,'points per core = ',nloc,'~',nloc+1
-   print *,'number of cores per group = ',ncore
-   write(*,'(a,f5.2,a,f5.2,a,f5.2)')'cutoff = ',seps,':',deps,':',seps+(neps-1)*deps
-endif
-
-! read trajectory in every <ncore> CPUs
-if(rank==0) call current_time('start reading trajectory')
-nloctraj=floor(1.*Npoints/ncore)
-if(key1>=mod(Npoints,ncore)) then
-   netraj=Npoints-(ncore-key1-1)*nloctraj
-   nstraj=netraj-nloctraj+1
-else
-   nloctraj=nloctraj+1
-   nstraj=1+key1*nloctraj
-   netraj=nstraj+nloctraj-1
-endif
-allocate(nstrajall(size))
-call MPI_ALLGATHER(nstraj,1,MPI_INTEGER,nstrajall,1,MPI_INTEGER,comm,ierr)
-
-allocate(loctraj(dim,nloctraj))
-
-!if(rank<ncore)then  !EYB:: Checl what happens if ncore > 1
-!   do idx=1,nstraj-1
-!   enddo
-   do idx=nstraj,netraj
-      do jdx = 1, dim
-         loctraj(jdx,idx-nstraj+1) = traj(mod((jdx-1),3)+1,((idx-1)*dim/3)+((jdx-1)/3)+1)
-      enddo
-   enddo
-!endif
-
-!call MPI_barrier(comm,ierr)
-!call MPI_BCAST(loctraj,dim*nloctraj,MPI_REAL,0,subcomm2,ierr)
-
-! define output file name                                                      
-if(write_localscale) then
-inlen=index(nn_traj,' ') - 1
-   write(output,'(a,a,i4,a,i5)') nn_traj(1:inlen),'_eps_',norder,'_00',rank+10000
-   open(51,file='localscale/'//output,status='unknown')
-endif
-
-! allocate storage
-allocate(distLocal(dmds,dmds))
-allocate(cneighbor(dmds))
-allocate(idneighbor(dmds))
-allocate(point_neighbor(ncore))
-allocate(nlocall_neighbor(ncore))
-allocate(picktraj(dim,dmds))
-allocate(ctraj(dim,dmds))
-allocate(xx(Natoms,3))
-allocate(yy(Natoms,3))
-allocate(rot(9))
-allocate(weight(Natoms))
-
-weight=1.
-
-it_rpmds=1
-d_rpmds=2
-stepsize=floor(Nneigh/dmds/1.)
-
-allocate(EpsArray(myeps,mynstart:mynend))
-
-do idx=mynstart,mynstart+nlimit-1
-   if (rank==0) then
-      write(tmp_text,'(a,i7)') 'start processing point ',idx
-      call current_time(tmp_text)
-   endif
-   if(idx<=nend) then
-      ! pick <dmds> neighbors from <Nneigh> neighbors
-      do jdx=1,dmds
-         cneighbor(jdx)=neighbor(stepsize*(jdx-1)+1,idx-mynstart+1)
-      enddo
-      ! get trajectory
-      ! sort the neighbor list
-      idneighbor=(/(jdx,jdx=1,dmds,1)/)
-      call iQsort(cneighbor,idneighbor)
-
-   else
-      ! if the current CPU ends, to avoid errors in the next data sharing block,
-      ! set all the neighbors the first point
-      cneighbor=1
-   endif
-   do jdx=0,ncore-1
-      allocate(tmpneighbor(dmds))
-      tmpneighbor=cneighbor
-      call MPI_BCAST(tmpneighbor,dmds,MPI_INTEGER,jdx,subcomm1,ierr)
-      ! get the pointer to the neighbor list
-      tmp_int1=ncore ! the current rank of core in the subgroup to find the beginning
-      do kdx=dmds,1,-1
-         do while(nstrajall(tmp_int1)>tmpneighbor(kdx))
-            point_neighbor(tmp_int1)=kdx+1
-            tmp_int1=tmp_int1-1
-         enddo
-      enddo
-      point_neighbor(1)=1
-      do kdx=1,ncore-1
-         nlocall_neighbor(kdx)=point_neighbor(kdx+1)-point_neighbor(kdx)
-      enddo
-       nlocall_neighbor(ncore)=dmds-point_neighbor(ncore)+1
-      nloc_neighbor=nlocall_neighbor(key1+1)
-      allocate(locpicktraj(dim,nloc_neighbor))
-      do kdx=1,nloc_neighbor
-         locpicktraj(:,kdx)=loctraj(:,tmpneighbor(point_neighbor(key1+1)+kdx-1)-nstraj+1)
-      enddo
-      call MPI_GATHERV(locpicktraj,dim*nloc_neighbor,MPI_REAL,picktraj,dim*nlocall_neighbor, &
-           dim*(point_neighbor-1),MPI_REAL,jdx,subcomm1,ierr)
-      deallocate(locpicktraj)
-      deallocate(tmpneighbor)
-   enddo
-   if(idx<=nend)then
-      ! get trajectory in the original neighbor list order
-      do jdx=1,dmds
-         ctraj(:,idneighbor(jdx))=picktraj(:,jdx)
-      enddo
-      ! calculate rmsd
-      do jdx=1,dmds
-         do kdx=jdx+1,dmds
-            xx(:,1)=ctraj(1:dim-2:3,jdx)
-            xx(:,2)=ctraj(2:dim-1:3,jdx)
-            xx(:,3)=ctraj(3:dim:3,jdx)
-            yy(:,1)=ctraj(1:dim-2:3,kdx)
-            yy(:,2)=ctraj(2:dim-1:3,kdx)
-            yy(:,3)=ctraj(3:dim:3,kdx)
-            sumall=calcrmsdrotationalmatrix(Natoms,xx(:,1),xx(:,2),xx(:,3),yy(:,1),&
-                 yy(:,2),yy(:,3),rot,weight)
-            sumall=sumall**2
-            distLocal(jdx,kdx)=sumall
-            distLocal(kdx,jdx)=sumall
-         enddo
-      enddo
-      do jdx=1,dmds
-         distLocal(jdx,jdx)=0.
-      enddo
-      ! MDS
-      allocate(anapca(smax,dspec))
-      allocate(vx(smax))
-      anapca=0.
-      do jdx=1,smax
-         vx(jdx)=sqrt(distLocal(1,(jdx-1)*dk+kmin))
-      enddo
-      do jdx=kmin,kmax,dk
-         allocate(eigval(dnev))
-         allocate(coor(jdx,dnev))
-         allocate(tdist(jdx,jdx))
-         tdist=distLocal(1:jdx,1:jdx)
-         call rpmds(tdist,jdx,dnev,eigval,it_rpmds,d_rpmds)
-         deallocate(tdist)
-         mdx=(jdx-kmin)/dk+1
-         if (jdx<dnev .and. jdx<dspec) then
-            do kdx=1,jdx
-               anapca(mdx,kdx)=eigval(kdx)/sqrt(real(jdx))
-            enddo
-         else
-            do kdx=1,dspec
-               anapca(mdx,kdx)=eigval(kdx)/sqrt(real(jdx))
-            enddo
-         endif
-         deallocate(eigval)
-         deallocate(coor)
-      enddo
-      if (write_localscale) write(51,'(i7,1x)',advance='no') idx
-      EpsArray(1,idx) = idx
-      do jdx=1,neps
-         ceps=seps+(jdx-1)*deps
-         call pickeps(anapca,vx,smax,dspec,res_real,res_int,ceps)
-         EpsArray((jdx-1)*5+2,idx) = ((res_int(1)-1)*dk+kmin-1)*stepsize+1
-         EpsArray((jdx-1)*5+3,idx) = res_real(1)
-         EpsArray((jdx-1)*5+4,idx) = res_real(2)
-         EpsArray((jdx-1)*5+5,idx) = res_int(2)
-         EpsArray((jdx-1)*5+6,idx) = res_int(3)
-         if (write_localscale) write(51,'(i7,1x,f10.6,1x,f10.6,1x,i2,1x,i2,1x)',advance='no') &
-          ((res_int(1)-1)*dk+kmin-1)*stepsize+1,res_real(1),res_real(2),res_int(2),res_int(3)
-      enddo
-      if (write_localscale) write(51,*)
-      deallocate(vx)
-      deallocate(anapca)
-   endif ! matching line 319 if(id<=nend)
-enddo
-
-if (rank == size-1 .and. nend ==Npoints .and. write_localscale) then
-   write(51,'(a,f10.6,a,f10.6,a,f10.6)') '% the first derivative cutoff = ', seps,':',deps,':',&
-        seps+(neps-1)*deps
-   write(51,'(a)') '% id/k_1/eps_1/eiggap_1/intdim1_1/intdim2_1/k_2/eps_2/eiggap_2/intdim1_2/intdim2_2/...'
-endif
-if (write_localscale) close(51)
-
-
-allocate(FullEpsArray(myeps,Npoints))
-call MPI_GATHERV(EpsArray,myeps*nloc,MPI_REAL8,FullEpsArray,myeps*counts,dspls,MPI_REAL8,0,comm,ierr)
-deallocate(EpsArray)
-
-if (rank == size-1 .and. nend ==Npoints) then
-   write(*,'(a,f10.6,a,f10.6,a,f10.6)') '% the first derivative cutoff = ', seps,':',deps,':',&
-        seps+(neps-1)*deps
-   write(*,'(a)') '% id/k_1/eps_1/eiggap_1/intdim1_1/intdim2_1/k_2/eps_2/eiggap_2/intdim1_2/intdim2_2/...'
-endif
-
-!close(51)
-
-
-if (rank==0) call current_time('Subroutine p_local_mds end')
-if(rank==0)then 
-   deallocate(dspls)
-endif
-
+  if (write_localscale) close(51)
+  
+  
+  allocate(FullEpsArray(myeps,Npoints))
+  ! Gather arrays EpsArray from each PE into one big array FullEpsArray on PE 0
+  call MPI_GATHERV(EpsArray,myeps*nloc,MPI_REAL8,FullEpsArray,myeps*counts,dspls,MPI_REAL8,0,comm,ierr)
+  call trace_exit("MPI_Gatherv for EpsArray failed",ierr)
+  deallocate(EpsArray)
+  
+  if (rank == size-1 .and. nend ==Npoints) then
+     write(*,'(a,f10.6,a,f10.6,a,f10.6)') '% the first derivative cutoff = ', seps,':',deps,':',&
+          seps+(neps-1)*deps
+     write(*,'(a)') '% id/k_1/eps_1/eiggap_1/intdim1_1/intdim2_1/k_2/eps_2/eiggap_2/intdim1_2/intdim2_2/...'
+  endif
+  
+  if (rank==0) call current_time('Subroutine p_local_mds end')
+  if(rank==0)then 
+     deallocate(dspls)
+  endif
+  
 end subroutine p_local_mds
 
-! random projection multidimensional scaling
+! Random projection multidimensional scaling
 ! if it<=1, it is faster than the classical mds function using ARPACK
 ! 
 subroutine rpmds(distLocal,dmds,dnev,eigval,it,d)
@@ -397,17 +421,17 @@ subroutine rpmds(distLocal,dmds,dnev,eigval,it,d)
      enddo
   enddo
 
-!!
-!! Here is the matlab code for centering the point.  
-!! The code above is two times faster than 
-!! directly translating the matlab code to fortran.
-!!
+! Here is the matlab code for centering the point.  
+! The code above is two times faster than 
+! directly translating the matlab code to fortran.
+!
 !  ones=1.
 !  dist=dist-matmul(matmul(dist,ones),transpose(ones))/dmds
 !  dist=-0.5*(dist1-matmul(ones,matmul(transpose(ones),dist1))/dmds)
 
   ! SVD directly if (it+1)*dl>=dmds/1.25
   dl=dnev+d
+
   if((it+1)*dl>=dmds/1.25)then
      lworksvd=5*dmds
      allocate(worksvd(lworksvd))
@@ -418,6 +442,7 @@ subroutine rpmds(distLocal,dmds,dnev,eigval,it,d)
      eigval=sqrt(S(1:dnev))
      return
   endif
+
   ! generate random matrix
   do idx=1,dmds
      do jdx=1,dl
@@ -693,12 +718,12 @@ subroutine polyfit(smax,vx, vy, fit, d)
   ! calls to LAPACK subs DGETRF and DGETRI
   call DGETRF(n, n, XTX, lda, ipiv, info)
   if ( info /= 0 ) then
-     print *, "problem"
+     write(*,*) "problem"
      return
   end if
   call DGETRI(n, XTX, lda, ipiv, work, lwork, info)
   if ( info /= 0 ) then
-     print *, "problem"
+     write(*,*) "problem"
      return
   end if
   

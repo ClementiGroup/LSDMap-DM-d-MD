@@ -106,13 +106,13 @@ aladip.gro.tar.gz:
     	wall time:                    maximum wall clock time required for job
     	your budget name:             budget to be charged to (contact project PI
     	                               if unknown)
-    -Run 'prepare_localscaleEPCC.sh' to prepare the input file.
-    	 > ./prepare_localscale.sh
+    -Run 'prepare_p_lsdmap.sh' to prepare the input file.
+    	 > ./prepare_p_lsdmap.sh
     -Submit the pbs script:
         > ./submitlist
 
 3. There is one input file needed, an example one is 'ExampleInputFile'. It
-    is created automatically by running prepare_localscalePCC.sh as described
+    is created automatically by running prepare_p_lsdmap.sh as described
     above. The entries are
 
     in file	           variable name in code
