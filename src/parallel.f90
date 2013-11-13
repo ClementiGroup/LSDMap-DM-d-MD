@@ -3,12 +3,7 @@
 !   to keep track of varaibles related to MPI                   !
 !                                                               !
 ! Developed by                                                  !                                                          
-!   E.Breitmoser, EPCC, Uinversity of Edinburgh                 !                                                           
-!---------------------------------------------------------------!                                                           
-! Input                                                         !
-!                                                               ! 
-! Output                                                        !
-!                                                               !
+!   E.Breitmoser, EPCC, Uinversity of Edinburgh                 ! 
 !---------------------------------------------------------------! 
 ! Develop log                                                   !
 !                                                               !

@@ -1,5 +1,5 @@
-!---------------------------------------------------------------!                                                       \
-! Function  subroutine for LSDMap code                          !                                                       \
+!---------------------------------------------------------------!
+! Function  subroutine for LSDMap code                          !
 !                                                               !                                                        
 ! Parallel LSDMap                                               !                                                        
 !---------------------------------------------------------------!                                                       
@@ -14,17 +14,17 @@
 ! Develop log                                                   !                                                        
 !                                                               !                                                        
 ! LSDMap v1.0 - Aug 01 2012 - Initial Release                   !                                                        
-!                                                               !                                                       \
+!                                                               !
 ! Developed by                                                  !                                                        
-!    Wenwei Zheng       wz7@rice.edu                            !                                                       \
-!    Mary Rohrdanz      mar3@rice.edu                           !                                                       \
-!    Cecilia Clementi   cecilia@rice.edu                        !                                                       \
+!    Wenwei Zheng       wz7@rice.edu                            ! 
+!    Mary Rohrdanz      mar3@rice.edu                           !                                                      
+!    Cecilia Clementi   cecilia@rice.edu                        !
 !                                                               !                                                        
-! Please reference the papers below if you use LSDMap:          !                                                       \
+! Please reference the papers below if you use LSDMap:          !                                                    
 ! 1. Rohrdanz, M.A., Zheng, W., Maggioni, M., and Clementi, C., !                                                        
 !    J. Chem. Phys., 134, 124116, 2011                          !                                                        
-! 2. Zheng, W., Rohrdanz, M.A., Caflisch, A., Dinner, A.R.,     !                                                       \
-!    and Clementi, C., J. Phys. Chem. B, 115, 13065-13074, 2011 !                                                       \
+! 2. Zheng, W., Rohrdanz, M.A., Caflisch, A., Dinner, A.R.,     !                                          
+!    and Clementi, C., J. Phys. Chem. B, 115, 13065-13074, 2011 !                                                  
 !                                                               !                                                        
 !                                                               !                                                        
 !       WZ 2/2/2011                                             !                                                        
@@ -58,7 +58,7 @@
 ! http://www.caam.rice.edu/software/ARPACK/UG/node22.html#SECTION00630000000000000000                                    
 !                                                               !                                                        
 ! LSDMap v1.1 - Sept 2013  -                                    !                                                        
-! Now steered from main.f90                                     !                                                       \
+! Now steered from main.f90                                     !                                                   
 ! E.Breitmoser, EPCC, University of Edinburgh                   !                                                        
 !---------------------------------------------------------------!      
 

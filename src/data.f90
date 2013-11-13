@@ -4,12 +4,7 @@
 !                                                               !
 ! Developed by                                                  !                                                          
 !   E.Breitmoser, EPCC, Uinversity of Edinburgh                 !                                                           
-!---------------------------------------------------------------!                                                           
-! Input                                                         !
-!                                                               ! 
-! Output                                                        !
-!                                                               !
-!---------------------------------------------------------------! 
+!---------------------------------------------------------------!
 ! Develop log                                                   !
 !                                                               !
 ! September 2013 Initial Release                                !
@@ -19,48 +14,49 @@ module data
   
   implicit none
   
-  integer :: ns         !
-  integer :: ne         !
-  integer :: Npoints    !
-  integer :: dim        !
-  integer :: Nneigh     !
-  integer :: Natoms     !
+  integer :: ns         ! Start point ID
+  integer :: ne         ! End  point ID
+  integer :: Npoints    ! 
+  integer :: dim        ! 
+  integer :: Nneigh     ! Number of neighbors
+  integer :: Natoms     ! := dim/3
   
   ! Variables for data distribution across processors
-  integer :: nloc       !
-  integer :: nstart     !
-  integer :: nend       !
+  integer :: nloc       ! 
+  integer :: nstart     ! Local loop start index
+  integer :: nend       ! Local loop end index
   integer :: nlimit     !
   integer :: extra      !
 
-  real, allocatable :: traj(:,:)
-  ! Added second dim for arrays below for book-keeping
-  integer, allocatable, save :: idneigh(:,:)
-  real(kind=8), allocatable :: dist(:,:)
-  real(kind=8), allocatable, save :: tmp_rmsd(:,:)
-  real(kind=8), allocatable, save :: FullEpsArray(:,:)
-  real(kind=8), allocatable :: EpsArray(:,:)
+  real, allocatable :: traj(:,:)  ! Input trajectory
+  ! Added second dim for arrays below for book-keeping between subroutine calls
+  integer, allocatable, save :: idneigh(:,:)           !
+  real(kind=8), allocatable :: dist(:,:)               !
+
+  ! Introduced to be able to avoid intermediate IO between subroutine calls
+  real(kind=8), allocatable, save :: tmp_rmsd(:,:)     ! Gathers all dist into one array on all processors
+  real(kind=8), allocatable, save :: FullEpsArray(:,:) ! Gathers all EpsArrays into one array on processor 0
+  real(kind=8), allocatable :: EpsArray(:,:)           ! Local to each processor, keeps track of 6 values,
+                                                       ! which can be written to localscale/...
   
-  ! Name of the xyz-input file
-  character(200) :: nn_traj
-  
-  integer :: norder
-  integer :: ncore
-  integer :: dmds
-  integer :: kmin
-  integer :: dk
-  integer :: neps
-  real(kind=8) :: seps
-  real(kind=8) :: deps
+  character(200) :: nn_traj  ! Name of the xyz-input file  
+  integer :: norder     ! Job ID
+  integer :: ncore      ! Number of CPUs to share the trajectory ncore
+  integer :: dmds       ! Number of points for MDS
+  integer :: kmin       ! Start point for MDS spectra
+  integer :: dk         ! Step size for MDS spectra
+  integer :: neps       ! Cutoff for the first derivative of MDS spectra
+  real(kind=8) :: seps  !     "
+  real(kind=8) :: deps  !     "
   
   
-  character(180) :: NN_input_weight
-  character(200) :: output_file
-  integer :: status_dmap
-  integer :: status_eps
-  integer :: column_eps
-  real(kind=8) :: cutoff
-  real(kind=8) :: eps0
+  character(180) :: NN_input_weight  ! Weight file name
+  character(200) :: output_file      ! Output file name
+  integer :: status_dmap             ! Status of LSDMap
+  integer :: status_eps              !     "
+  integer :: column_eps              ! Local scale file name or
+  real(kind=8) :: eps0               ! constant local scale value
+  real(kind=8) :: cutoff             ! Cutoff for sparse matrix
   
   logical :: write_rmsd        ! If .true. the intermediate IO files '/rmsd/...' are written
   logical :: write_neighbor    ! If .true. the intermediate IO files '/neighbor/...' are written
