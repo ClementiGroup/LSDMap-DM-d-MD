@@ -184,7 +184,7 @@ def run_lsdmap():
     kernel /= np.sqrt(d_vector_thread[:,np.newaxis].dot(d_vector[np.newaxis])) # Eq (8) (slightly modified)
 
     # diagonalization of LSDMap kernel
-    params= p_arpack._ParallelSymmetricArpackParams(comm, kernel, 10) #10 indicates than 10 eigenvalues will be extracted
+    params= p_arpack._ParallelSymmetricArpackParams(comm, kernel, 10) #10 indicates that 10 eigenvalues will be extracted
     while not params.converged:
         params.iterate()
     eigs, evs = params.extract(return_eigenvectors=True)
