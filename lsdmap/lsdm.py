@@ -22,10 +22,10 @@ class LSDMapConfig(object):
     ----------
 
     config: ConfigParser object
-        used to read to the configuration file
+        used to read the configuration file
 
     args: argparse object
-        used to get all the arguments that were specied on the command line when running the script.
+        used to get all the arguments that were specified on the command line when running the script.
     """
 
     def __init__(self, config, args):
@@ -78,7 +78,7 @@ class LSDMapConfig(object):
                 value = config.getfloat('LOCALSCALE', 'epsilon')
                 value = value*np.ones(ncoords)
 
-            if status == 'user': raise NameError("type 'user' specified in configuration file but epsfile not provided. Please consider option flag -e")
+            if status == 'user': raise NameError("status 'user' specified in configuration file but epsfile not provided. Please consider option flag -e")
 
         return status, value
 
@@ -165,12 +165,12 @@ def run_lsdmap():
 
     if rank == 0: time1 = time()
 
-    # for a detailed of the following operations, see the paper:
+    # for a detailed description of the following operations, see the paper:
         # Determination of reaction coordinates via locally scaled diffusion map
         # Mary A. Rohrdanz, Wenwei Zheng, Mauro Maggioni, and Cecilia Clementi
         # The Journal of Chemical Physics 134, 124116 (2011)
 
-    # compute LSDMap kernel, Eq (5) of the paper mentioned above
+    # compute LSDMap kernel, Eq. (5) of the paper mentioned above
     kernel = np.sqrt(weights_thread[:, np.newaxis].dot(LSDMapConfig.weights[np.newaxis]))* \
         np.exp(-distance_matrix**2/(2*epsilon_thread[:, np.newaxis].dot(LSDMapConfig.epsilon[np.newaxis])))
 
