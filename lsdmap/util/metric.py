@@ -99,27 +99,31 @@ class DistanceMatrix(object):
 
     def __init__(self, coords1, coords2, metric='rmsd'):
        
-       self.coords1 = self.check_coords(coords1)
+       self.coords1 = self.format_coords(coords1)
        self.ncoords1 = len(self.coords1)
 
        self.nxyz_coords= len(self.coords1[0]) 
        self.metric = Metric(metric).function
 
-       self.coords2 = self.check_coords(coords2)
+       self.coords2 = self.format_coords(coords2)
        self.ncoords2 = len(self.coords2)
 
        self.maxsize = 3E8;
 
 
-    def check_coords(self, coords):
+    def format_coords(self, coords):
 
-        if isinstance(coords, np.ndarray) or isinstance(coords, list): 
-            for coord in coords:
-                if not isinstance(coord, np.ndarray): raise TypeError("Not all coordinates are numpy arrays")
-        else:
-            raise TypeError("Coordinates should be given as a list or numpy array")
+        if isinstance(coords, np.ndarray):
+            if len(coords.shape) == 1: coords = [coords]
+        elif isinstance(coords, list):
+            coords = np.array(coords)
+            if len(coords.shape) == 1: coords = [coords]
+        else: raise ValueError("Coordinates should be given as a list or numpy array")
+
+        coords = np.array(coords)
 
         return coords
+
 
 
     def __getattr__(self, name):
