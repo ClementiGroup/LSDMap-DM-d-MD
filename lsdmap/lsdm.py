@@ -149,7 +149,7 @@ def run_lsdmap():
     # compute the distance matrix
     if rank == 0: time1 = time()
     DistanceMatrix = mt.DistanceMatrix(coords_thread, LSDMapConfig.coords, metric=LSDMapConfig.metric)
-    distance_matrix = DistanceMatrix.distance_matrix()
+    distance_matrix = DistanceMatrix.distance_matrix
     if rank == 0: time2 = time(); print "time estimated to compute the distance matrix: %.3f " %(time2 - time1)
 
     # good moment to compute the kth neighbor local scale if needed

@@ -99,34 +99,40 @@ class DistanceMatrix(object):
 
     def __init__(self, coords1, coords2, metric='rmsd'):
        
-
-       self.coords1 = self.format_coords(coords1)
+       self.coords1 = self.check_coords(coords1)
        self.ncoords1 = len(self.coords1)
 
        self.nxyz_coords= len(self.coords1[0]) 
        self.metric = Metric(metric).function
 
-       self.coords2 = self.format_coords(coords2)
+       self.coords2 = self.check_coords(coords2)
        self.ncoords2 = len(self.coords2)
 
-       self.maxsize = 3E8; 
+       self.maxsize = 3E8;
 
 
-    def format_coords(self, coords):
+    def check_coords(self, coords):
 
-        if isinstance(coords, np.ndarray): 
-            if len(coords.shape) == 1: coords = [coords]
-        elif isinstance(coords, list):
-            coords = np.array(coords)
-            if len(coords.shape) == 1: coords = [coords]
-        else: raise ValueError("Coordinates should be given as a list or numpy array")
-
-        coords = np.array(coords)
+        if isinstance(coords, np.ndarray) or isinstance(coords, list): 
+            for coord in coords:
+                if not isinstance(coord, np.ndarray): raise TypeError("Not all coordinates are numpy arrays")
+        else:
+            raise TypeError("Coordinates should be given as a list or numpy array")
 
         return coords
 
 
-    def distance_matrix(self):
+    def __getattr__(self, name):
+        if name == "distance_matrix":
+            if hasattr(self, '_distance_matrix'):
+                return self._distance_matrix
+            else:
+                return self.get_distance_matrix()
+
+        return DistanceMatrix.__getattribute__(self, name)
+
+
+    def get_distance_matrix(self):
 
         if (self.ncoords1*self.ncoords2) > self.maxsize: raise ValueError("Large distance matrix expected! use more threads to avoid too much memory")
 
@@ -137,9 +143,9 @@ class DistanceMatrix(object):
             idx = kdx/self.ncoords2; jdx = kdx%self.ncoords2;
             matrix[idx][jdx] = self.metric(coord1, coord2) # compute distance matrix
 
-        self.matrix = matrix
+        self._distance_matrix = matrix
 
-        return self.matrix
+        return matrix
 
 
     def neighbor_matrix(self, **kargs):
@@ -157,28 +163,25 @@ class DistanceMatrix(object):
     def get_neighbor_matrix(self, k=None):
 
         if k is not None:
-            self.k = k
             if k >= self.ncoords2:
                 print "Warning: k > = number of data points "
-                self.k = self.ncoords2
-        else: self.k = self.ncoords2
+        else: k = self.ncoords2
 
-        if (self.ncoords1*self.k) > self.maxsize: raise ValueError("Large distance matrix expected! use more threads to avoid too much memory")
+        if (self.ncoords1*k) > self.maxsize: raise ValueError("Large distance matrix expected! use more threads to avoid too much memory")
 
-        neighbor_matrix = np.zeros((self.ncoords1, self.k), dtype='float')
-        idx_neighbor_matrix = np.zeros((self.ncoords1, self.k), dtype='int')
+        neighbor_matrix = np.zeros((self.ncoords1, k), dtype='float')
+        idx_neighbor_matrix = np.zeros((self.ncoords1, k), dtype='int')
 
-        if hasattr(self, 'matrix'):
+        if hasattr(self, '_distance_matrix'):
             for idx, distance in enumerate(self.matrix):
-                idx_neighbors = np.argsort(distance)[:self.k]  # the first element is the point itself
+                idx_neighbors = np.argsort(distance)[:k]  # the first element is the point itself
                 idx_neighbor_matrix[idx] = idx_neighbors
                 neighbor_matrix[idx] = [distance[idx_neighbor] for idx_neighbor in idx_neighbors]
         else:
             for idx, coord1 in enumerate(self.coords1):
                 distance = np.array([self.metric(coord1, coord2) for coord2 in self.coords2])    
-                idx_neighbors = np.argsort(distance)[:self.k]  # the first element is the point itself
+                idx_neighbors = np.argsort(distance)[:k]  # the first element is the point itself
                 idx_neighbor_matrix[idx] = idx_neighbors
                 neighbor_matrix[idx] = [distance[idx_neighbor] for idx_neighbor in idx_neighbors]
 
         return neighbor_matrix, idx_neighbor_matrix
-
