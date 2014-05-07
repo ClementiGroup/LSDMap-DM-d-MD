@@ -177,7 +177,7 @@ class DistanceMatrix(object):
         idx_neighbor_matrix = np.zeros((self.ncoords1, k), dtype='int')
 
         if hasattr(self, '_distance_matrix'):
-            for idx, distance in enumerate(self.matrix):
+            for idx, distance in enumerate(self._distance_matrix):
                 idx_neighbors = np.argsort(distance)[:k]  # the first element is the point itself
                 idx_neighbor_matrix[idx] = idx_neighbors
                 neighbor_matrix[idx] = [distance[idx_neighbor] for idx_neighbor in idx_neighbors]
