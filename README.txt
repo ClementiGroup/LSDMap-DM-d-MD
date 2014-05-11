@@ -11,10 +11,11 @@ or using MPI:
 
     mpiexec -n <number_of_processors> lsdmap -f <configuration_file> -c <structure_file> <other_options>
 
-
 A typical example of configuration file can be found in ./examples. The
 structure file should contain all the configurations needed to compute
-LSDMap. 
+LSDMap. After execution of the script, a .ev and a .eg file should have
+been generated containing the eigenvectors and eigenvalues, respectively,
+as well as a .lsdmap (pickle) file containing the lsdmap object. 
 
 
 Prerequisites
@@ -77,3 +78,23 @@ For more information on lsdmap command, simply type:
 
     lsdmap -h
 
+
+Other
+=====
+
+Restriction from physical space to LSDMap variables can be performed
+by calling "rlsdmap" script after LSDMap has been computed. Typical
+usage of rlsdmap is:
+
+    rlsdmap -s <lsdmap_file> -c <structure_file> <other_options>
+
+or using MPI:
+
+    mpiexec -n <number_of_processors> rlsdmap -s <lsdmap_file> -c <structure_file> <other_options>
+
+where lsdmap_file is the .lsdmap file generated using lsdmap script
+
+
+For more information on rlsdmap command, simply type:
+
+    rlsdmap -h

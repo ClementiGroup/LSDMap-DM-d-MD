@@ -191,37 +191,14 @@ class EvFile(object):
         return nlines
 
 
-    def get_evs(self, ev_idxs, nums=None):
+    def get_evs(self, nums=None):
 
-        if nums is None:
-
-            if isinstance(ev_idxs,int): ev_idxs=[ev_idxs]
-            nevs=len(ev_idxs)
-            evs=[[] for i in range(nevs)]
-
-            with open(self.filename,'r') as evfile:
-                for line in evfile:
-                    columns=line.split()
-                    for idx, ev_idx in enumerate(ev_idxs):
-                        evs[idx].append(float(columns[ev_idx].replace('D','E')))
-
-            if len(ev_idxs)==1: evs = np.array(evs[0])
-            else: evs = [np.array(kevs) for kevs in evs]
-            return evs
-
-        else:
-
-            if isinstance(ev_idxs,int): ev_idxs=[ev_idxs]
-            nevs=len(ev_idxs)
-            evs=[[] for i in range(nevs)]
-
-            with open(self.filename,'r') as evfile:
-                for idx_line, line in enumerate(evfile):
-                    columns=line.split()
-                    if idx_line in nums:
-                        for idx, ev_idx in enumerate(ev_idxs):
-                            evs[idx].append(float(columns[ev_idx].replace('D','E')))
-
-        if len(ev_idxs)==1: evs = np.array(evs[0])
-        else: evs = [np.array(kevs) for kevs in evs]
+        with open(self.filename,'r') as evfile:
+            first_line = map(float, evfile.readline().split())
+            self.nevs = len(first_line)
+            evs = np.empty((self.nlines, self.nevs))
+            evs[0][:]= np.array(first_line)
+            for idx, line in enumerate(evfile):
+                evs[idx+1][:] = np.array(map(float, line.split()))
         return evs
+

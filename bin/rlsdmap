@@ -2,4 +2,4 @@
 
 import lsdmap.lsdm as lsdm
 
-lsdm.LSDMap().run()
+lsdm.LSDMapRest().run()
