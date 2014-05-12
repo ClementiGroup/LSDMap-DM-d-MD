@@ -237,7 +237,7 @@ class LSDMapRest(object):
         # other options
         parser.add_argument("-e", type=str, dest="epsfile", help='File containing the local scales of each points (input, opt.): txt')
         parser.add_argument("-w", type=str, dest="wfile", help='File containing the weights of each points (input, opt.): txt')
-        parser.add_argument("--embed", action='store_true', help='embed LSDMap coordinates to old ones')
+        parser.add_argument("--embed", dest="embed", action='store_true', help='embed LSDMap coordinates to old ones', default=False)
 
         return parser
 
@@ -324,12 +324,17 @@ class LSDMapRest(object):
         evs /= np.sqrt(d_vector_thread[:,np.newaxis])
         norm = np.sqrt(np.sum((LSDMap.evsu/np.sqrt(LSDMap.d_vector[:,np.newaxis]))**2, axis=0))
         evs /= norm[np.newaxis,:]
-        self.evs = evs   
 
         # print eigenvectors and eigenvalues in .ev and .eg files
         if rank == 0:
+            if args.embed is True:
+                LSDMap.evs = np.vstack((LSDMap.evs, evs))
+                evs = LSDMap.evs
+                with open(args.lsdmap_file, "w") as file:
+                    pickle.dump(LSDMap, file)
+
             path, ext = os.path.splitext(args.struct_file)
-            np.savetxt(path + '.ev', np.fliplr(self.evs), fmt='%15.7e')
+            np.savetxt(path + '.ev', np.fliplr(evs), fmt='%15.7e')
 
 
 class LSDMapLift(object):
