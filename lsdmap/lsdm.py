@@ -12,8 +12,7 @@ from lsdmap.util import metric as mt
 from mpi4py import MPI
 
 
-_known_exts = ['.gro', '.txt']
-
+known_exts_struct_file = ['.gro', '.txt']
 
 class LSDMapConfig(object):
     """ 
@@ -52,7 +51,7 @@ class LSDMapConfig(object):
     def struct_file(self):
 
         filename, ext = os.path.splitext(self.args.struct_file)
-        if ext not in _known_exts: raise TypeError('Structure file extension %s unknown, please use one of ' %ext + ', '.join(_known_exts))  
+        if ext not in known_exts_struct_file: raise TypeError('Structure file extension %s unknown, please use one of ' %ext + ', '.join(_known_exts))  
 
         return reader.GroFile(self.args.struct_file)
 
@@ -244,7 +243,7 @@ class LSDMapRest(object):
     def initialize(self, args, LSDMap):
 
         filename, ext = os.path.splitext(args.struct_file)
-        if ext not in _known_exts: raise TypeError('Structure file extension %s unknown, please use one of ' %ext + ', '.join(_known_exts))
+        if ext not in known_exts_struct_file: raise TypeError('Structure file extension %s unknown, please use one of ' %ext + ', '.join(_known_exts))
 
         self.struct_file = reader.GroFile(args.struct_file)
         self.npoints = self.struct_file.nframes
@@ -298,7 +297,7 @@ class LSDMapRest(object):
     
         # compute the distance matrix
         if rank == 0: time1 = time()
-        DistanceMatrix = mt.DistanceMatrix(self.coords, LSDMap.LSDMapConfig.coords, metric=LSDMap.LSDMapConfig.metric)
+        DistanceMatrix = mt.DistanceMatrix(coords_thread, LSDMap.LSDMapConfig.coords, metric=LSDMap.LSDMapConfig.metric)
         distance_matrix = DistanceMatrix.distance_matrix
         if rank == 0: time2 = time(); print "time estimated to compute the distance matrix: %.3f " %(time2 - time1)
 
@@ -316,12 +315,13 @@ class LSDMapRest(object):
 
         d_vector_thread = np.sum(kernel, axis=1)
         kernel /= np.sqrt(d_vector_thread[:,np.newaxis].dot(LSDMap.d_vector[np.newaxis]))
+        d_vector = np.hstack(comm.allgather(d_vector_thread))
 
         evs_thread = kernel.dot(LSDMap.evsu)/LSDMap.eigs
-        evs = np.hstack(comm.allgather(evs_thread)) 
+        evs = np.concatenate(comm.allgather(evs_thread), axis=0) 
 
         # normalization
-        evs /= np.sqrt(d_vector_thread[:,np.newaxis])
+        evs /= np.sqrt(d_vector[:,np.newaxis])
         norm = np.sqrt(np.sum((LSDMap.evsu/np.sqrt(LSDMap.d_vector[:,np.newaxis]))**2, axis=0))
         evs /= norm[np.newaxis,:]
 
