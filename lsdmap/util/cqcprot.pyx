@@ -23,4 +23,7 @@ def rmsd(np.ndarray[np.double_t,ndim=1] coord1, np.ndarray[np.double_t,ndim=1] c
     value = calcrmsdrotationalmatrix( &natoms, <double*> coord1x.data, <double*> coord1y.data, <double*> coord1z.data, 
         <double*> coord2x.data, <double*> coord2y.data, <double*> coord2z.data, <double*> rot.data, <double*> weight.data  )
 
+    if np.isnan(value): # sometimes rmsd computation with the same point returns nan
+        value = 0.0
+
     return value

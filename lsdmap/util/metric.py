@@ -145,8 +145,7 @@ class DistanceMatrix(object):
 
         for kdx, (coord1, coord2) in enumerate(paircoords):
             idx = kdx/self.ncoords2; jdx = kdx%self.ncoords2;
-            if idx != jdx:
-                matrix[idx][jdx] = self.metric(coord1, coord2) # compute distance matrix
+            matrix[idx][jdx] = self.metric(coord1, coord2) # compute distance matrix
 
         self._distance_matrix = matrix
 
