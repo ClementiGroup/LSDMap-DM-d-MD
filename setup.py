@@ -76,13 +76,18 @@ finally:
 
 ext_modules = [Extension(
     name='lsdmap/util/pyqcprot',
-    sources=["lsdmap/util/pyqcprot.{}".format('pyx' if use_cython else 'c'), "lsdmap/util/qcprot.c"],
+    sources=["lsdmap/util/pyqcprot.{}".format('pyx' if use_cython else 'c')],
+    include_dirs=[numpy_include],
+    extra_compile_args=["-O3","-ffast-math"],
+    ), Extension(
+    name='lsdmap/util/coord_math',
+    sources=["lsdmap/util/coord_math.{}".format('pyx' if use_cython else 'c')],
     include_dirs=[numpy_include],
     extra_compile_args=["-O3","-ffast-math"],
     )]
 
 setup(name='lsdmap',
-      version='2.0',
+      version='2.0.1',
       packages=['lsdmap', 'lsdmap.util'],
       scripts = ['bin/lsdmap','bin/rlsdmap','bin/llsdmap'],
       ext_modules = ext_modules,

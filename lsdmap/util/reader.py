@@ -62,30 +62,28 @@ class GroFile(object):
 
     def get_coords(self):
 
-        _natoms=self.natoms
-
         coords=[]
         shift=0
 
         with open(self.filename, 'r') as file:
             for frame in xrange(self.nframes):
-                start=frame*self.nlines_per_frame+2-shift
-                end=(frame+1)*self.nlines_per_frame-1-shift
-                idx_lines=range(start,end)
+                start = frame*self.nlines_per_frame + 2 - shift
+                end = (frame+1)*self.nlines_per_frame - 1 - shift
+                idx_lines = range(start, end)
 
-                coord=np.zeros(3*self.natoms, dtype='float')
-                idx_atom=0
+                coord = np.zeros((3,self.natoms), dtype='float')
+                idx_atom = 0
 
                 for idx, line in enumerate(file):
                     if idx in idx_lines:
                         x,y,z = map(float,line.split()[3:6])
-                        coord[idx_atom]=x
-                        coord[_natoms+idx_atom]=y
-                        coord[2*_natoms+idx_atom]=z
-                        idx_atom+=1
-                        if idx_atom==self.natoms:
+                        coord[0, idx_atom] = x
+                        coord[1, idx_atom] = y
+                        coord[2, idx_atom] = z
+                        idx_atom += 1
+                        if idx_atom == self.natoms:
                             coords.append(coord)
-                            shift+=idx+1
+                            shift += idx+1
                             break 
 
         
