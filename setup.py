@@ -9,7 +9,6 @@ from distutils.core import Extension
 
 min_numpy_version = '1.4.1'
 min_scipy_version = '0.10.0'
-min_cython_version = '0.15'
 min_mpi4py_version = '1.0'
 
 # Some functions for showing errors and warnings.
@@ -56,16 +55,29 @@ def check_import(pkgname, pkgver):
 
 check_import('numpy', min_numpy_version)
 check_import('scipy', min_scipy_version)
-check_import('cython', min_cython_version)
 check_import('mpi4py', min_mpi4py_version)
 
 import numpy as np
-from Cython.Distutils import build_ext
+try:
+    numpy_include = numpy.get_include()
+except AttributeError:
+    numpy_include = numpy.get_numpy_include()
+
+# Handle cython modules
+try:
+    from Cython.Distutils import build_ext
+    use_cython = True
+    cmdclass = {'build_ext': build_ext}
+except ImportError:
+    use_cython = False
+    cmdclass = {}
+finally:
+    print 'use_cython: {}'.format(use_cython)
 
 ext_modules = [Extension(
-    name='lsdmap/util/cqcprot',
-    sources=["lsdmap/util/cqcprot.pyx", "lsdmap/util/qcprot.c"],
-    include_dirs = [np.get_include()],  # .../site-packages/numpy/core/include
+    name='lsdmap/util/pyqcprot',
+    sources=["lsdmap/util/pyqcprot.{}".format('pyx' if use_cython else 'c'), "lsdmap/util/qcprot.c"],
+    include_dirs=[numpy_include],
     extra_compile_args=["-O3","-ffast-math"],
     )]
 
@@ -74,7 +86,7 @@ setup(name='lsdmap',
       packages=['lsdmap', 'lsdmap.util'],
       scripts = ['bin/lsdmap','bin/rlsdmap','bin/llsdmap'],
       ext_modules = ext_modules,
-      cmdclass = {'build_ext': build_ext},
+      cmdclass = cmdclass,
       license='LICENSE.txt',
       description='LSDMap package',
       long_description=open('README.txt').read(),
