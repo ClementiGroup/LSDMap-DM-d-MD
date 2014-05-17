@@ -8,11 +8,10 @@ cdef extern from "math.h":
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
-def cmd(np.ndarray[np.double_t, ndim=2] coord1, np.ndarray[np.double_t, ndim=2] coord2):
+def cmd(np.ndarray[np.double_t, ndim=2] coord1, np.ndarray[np.double_t, ndim=2] coord2, double r0):
 
     cdef int natoms = coord1.shape[1]
     cdef double r1, r2, c1, c2, sumc1, sumc2, sumc1c2
-    cdef double r0 = 0.01
 
     sumc1 = sumc2 = sumc1c2 = 0.0
 

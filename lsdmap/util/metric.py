@@ -35,7 +35,7 @@ class Metric(object):
         return pyqcprot.CalcRMSDRotationalMatrix(coord1, coord2, None, None)
 
     def _h_cmd(self, coord1, coord2):
-        return coord_math.cmd(coord1, coord2)
+        return coord_math.cmd(coord1, coord2, 0.75)
 
     def _h_dihedral(self, coord1, coord2):
         raise NotImplementedError
@@ -102,10 +102,10 @@ class DistanceMatrix(object):
     --------
 
     >>> import numpy as np # import numpy library
-    >>> coords1 = np.array([[1.0], [3.5], [1.7]], [[4.8], [5.2], [3.7]]]) # length: n1
-    >>> coords2 = np.array([[5.5, 2.4, 1.1], [1.8, 3.2, 0.9]]) # length: n2
+    >>> coords1 = np.array([[1.0, 6.0], [3.5, 1.5], [1.7, 1.2]], [[4.8, 1.5], [5.2, 1.7], [3.7, 2.1]]]) # length: n1
+    >>> coords2 = np.array([[1.0, 6.0], [3.5, 1.5], [1.7, 1.2]], [[4.8, 1.5], [5.2, 1.7], [3.7, 2.1]], [[1.0, 6.0], [3.5, 1.5], [1.7, 1.2]]])# length: n2
     >>> DistanceMatrix = DistanceMatrix(coords1, coords2, metric='rmsd') # create instance of DistanceMatrix
-    >>> distance_matrix = DistanceMatrix.distance_matrix()  # returns the distance matrix (dimensions: n1 * n2)
+    >>> distance_matrix = DistanceMatrix.distance_matrix  # returns the distance matrix (dimensions: n1 * n2)
     >>> neighbor_distance_matrix = DistanceMatrix.neighbor_matrix(k=10) # (dimensions: n1 * k)
     >>> idx_neighbor_matrix = DistanceMatrix.idx_neighbor_matrix(k=10) # (dimensions: n1 * k)
     """
@@ -143,7 +143,7 @@ class DistanceMatrix(object):
        self.ncoords1 = self.coords1.shape[0]
        self.ncoords2 = self.coords2.shape[0]
 
-       self.maxsize = 3E8;
+       self.maxsize = 5E8;
 
 
     def __getattr__(self, name):
@@ -189,7 +189,8 @@ class DistanceMatrix(object):
                 print "Warning: k > = number of data points "
         else: k = self.ncoords2
 
-        if (self.ncoords1*k) > self.maxsize: raise ValueError("Large distance matrix expected! use more threads to avoid too much memory")
+        if (self.ncoords1*k) > self.maxsize:
+            raise ValueError("Large distance matrix expected! use more threads to avoid too much memory")
 
         neighbor_matrix = np.zeros((self.ncoords1, k), dtype='float')
         idx_neighbor_matrix = np.zeros((self.ncoords1, k), dtype='int')
