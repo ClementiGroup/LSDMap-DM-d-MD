@@ -23,7 +23,7 @@ class LSDMapRest(object):
         self.npoints = self.coords.shape[0]
 
         if args.wfile is not None:
-            wfile = reader.WFile(args.wfile)
+            wfile = reader.open(args.wfile)
             weights = wfile.readlines()
             if npoints != len(weights):
                 raise("Number of lines in .w file does not match the number of frames in structure file")
