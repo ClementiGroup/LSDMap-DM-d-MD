@@ -80,15 +80,15 @@ ext_modules = [Extension(
     include_dirs=[numpy_include],
     extra_compile_args=["-O3","-ffast-math"],
     ), Extension(
-    name='lsdmap/util/coord_math',
-    sources=["lsdmap/util/coord_math.{}".format('pyx' if use_cython else 'c')],
+    name='lsdmap/util/util',
+    sources=["lsdmap/util/util.{}".format('pyx' if use_cython else 'c')],
     include_dirs=[numpy_include],
     extra_compile_args=["-O3","-ffast-math"],
     )]
 
 setup(name='lsdmap',
-      version='2.0.1',
-      packages=['lsdmap', 'lsdmap.util'],
+      version='2.0.2',
+      packages=['lsdmap', 'lsdmap.util', 'lsdmap.reader'],
       scripts = ['bin/lsdmap','bin/rlsdmap','bin/llsdmap'],
       ext_modules = ext_modules,
       cmdclass = cmdclass,

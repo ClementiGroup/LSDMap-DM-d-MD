@@ -1,5 +1,5 @@
-#!/usr/bin/env python
+#!/home/jp43/local/bin/python
 
-import lsdmap.lsdm as lsdm
+import lsdmap.lift as lift
 
-lsdm.LSDMapLift().run()
+lift.LSDMapLift().run()

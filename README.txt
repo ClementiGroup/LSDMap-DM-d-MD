@@ -28,8 +28,6 @@ packages installed:
 
 * Scipy; version 0.10.0 or larger
 
-* Cython; version 0.15 or larger
-
 * mpi4py; version 1.0 or larger
 
 Version 2.6.x or 2.7.x of python should be used. 
@@ -44,7 +42,7 @@ instructions on how to proceed:
 
 1. First, make sure that you have NumPy, SciPy, Cython and mpi4py 
    installed. If not, get them from http://numpy.scipy.org/,
-   http://cython.org/, http://mpi4py.scipy.org/. Compile/install them.
+   http://mpi4py.scipy.org/. Compile/install them.
 
 2. From the main lsdmap distribution directory run this command,
    (plus any extra flags like --prefix to specify the installation

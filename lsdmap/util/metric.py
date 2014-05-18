@@ -1,6 +1,6 @@
 import os
 import pyqcprot
-import coord_math
+import util
 import numpy as np
 
 class Metric(object):
@@ -35,16 +35,15 @@ class Metric(object):
         return pyqcprot.CalcRMSDRotationalMatrix(coord1, coord2, None, None)
 
     def _h_cmd(self, coord1, coord2):
-        return coord_math.cmd(coord1, coord2, 0.75)
+        return util.cmd(coord1, coord2, 0.75)
 
     def _h_dihedral(self, coord1, coord2):
-        raise NotImplementedError
-
+        return util.dihedral(coord1, coord2)
 
     def get_function(self):
 
         metric_name = self.metric_name.lower()
-        _mapped = {'dihedral':'phi_psi'}
+        _mapped = {}
 
         if metric_name in _mapped:
             metric_name = _mapped[metric_name]
@@ -54,11 +53,11 @@ class Metric(object):
 
         if metric_name in metric1D_names:
             if self.ndim != 1:
-                raise ValueError('%s is a 1D metric. Please check the dimensions of your coordinates'%metric_name)
+                raise ValueError('%s is a 1D metric. Please check the spatial dimensions of your coordinates'%metric_name)
 
         if metric_name in metric3D_names:
             if self.ndim != 3:
-                raise ValueError('%s is a 3D metric. Please check the dimensions of your coordinates'%metric_name)
+                raise ValueError('%s is a 3D metric. Please check the spatial dimensions of your coordinates'%metric_name)
 
         metric_func_name = "_h_" + metric_name
 
@@ -199,6 +198,7 @@ class DistanceMatrix(object):
             for idx, distance in enumerate(self._distance_matrix):
                 idx_neighbors = np.argsort(distance)[:k]  # the first element is the point itself
                 idx_neighbor_matrix[idx] = idx_neighbors
+
                 neighbor_matrix[idx] = [distance[idx_neighbor] for idx_neighbor in idx_neighbors]
         else:
             for idx, coord1 in enumerate(self.coords1):
