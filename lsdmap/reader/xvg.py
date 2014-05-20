@@ -1,13 +1,15 @@
-"""Reader for .xvg files."""
+"""Reader for .xvg files containing angles."""
 
 import numpy as np
 import itertools as it
 
+pi = 3.14159265359
 
 class XvgError(Exception):
     pass
 
 class Reader(object):
+    global pi
 
     def __init__(self, filename):
 
@@ -38,7 +40,7 @@ class Reader(object):
                         coords.append(map(float, line)[1])
                 else: # multiple input files are supposed to be only created using g_chi -all
                     coords.append(map(float, line)[1])
-            return np.array(coords) 
+            return pi*np.array(coords)/180. #switch from degrees to radians before returning
         except StopIteration:
             return None
 
