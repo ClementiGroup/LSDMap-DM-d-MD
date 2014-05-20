@@ -78,7 +78,7 @@ class LSDMapLift(object):
         parser.add_argument("--ratio",
            type=float,
            dest="ratio",
-           help='Temperature is decreased by multiplying it by (1-ratio) at each step of simulated annealing (opt., default=0.1) ',
+           help='Temperature is decreased by multiplying it by (1-ratio) at each step of simulated annealing (opt., default=0.1)',
            default=0.1)
 
         parser.add_argument("--value_b",

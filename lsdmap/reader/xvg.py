@@ -30,7 +30,14 @@ class Reader(object):
         try:
             coords = []
             for file in self.file:
-                coords.append(float(file.next().split()[1]))
+                line = file.next().split()
+                if self.nfiles == 1:
+                    if len(line) > 2: # check if .xvg file was created using g_angle -all -ov ...
+                        coords.extend(map(float, line)[2:]) # in this case all columns after the second one are important
+                    else: # else the file was created using g_chi -all
+                        coords.append(map(float, line)[1])
+                else: # multiple input files are supposed to be only created using g_chi -all
+                    coords.append(map(float, line)[1])
             return np.array(coords) 
         except StopIteration:
             return None

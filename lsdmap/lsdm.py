@@ -25,6 +25,8 @@ class LSDMap(object):
         struct_file = reader.open(args.struct_file)
         self.struct_filename = struct_file.filename
         self.coords = struct_file.readlines()
+        logging.info('input coordinates loaded')
+
         self.npoints = self.coords.shape[0]
 
         self.initialize_local_scale()
@@ -93,8 +95,8 @@ class LSDMap(object):
             type=str,
             dest="struct_file",
             required=True,
-            nargs='+',
-            help = 'Structure file(s) (input): gro, xvg')
+            nargs='*',
+            help = 'Structure file (input): gro, xvg')
 
         # other options
         parser.add_argument("-o",
@@ -192,6 +194,7 @@ class LSDMap(object):
         with open(lsdmap_filename, "w") as file:
             pickle.dump(self, file)
 
+        logging.info("LSDMap object and eigenvalues/eigenvectors saved (.lsdmap and .eg/.ev files)")
 
     def run(self):
 
@@ -206,11 +209,21 @@ class LSDMap(object):
         config = ConfigParser.SafeConfigParser()
         config.read(args.config_file) # set config file parser
 
+        logging.basicConfig(filename='lsdmap.log',
+                            filemode='w',
+                            format="%(levelname)s:%(name)s:%(asctime)s: %(message)s",
+                            datefmt="%H:%M:%S",
+                            level=logging.DEBUG)
+
         # consider calling initialize function right after setting parsers
+
+        logging.info('intializing LSDMap...')
         self.initialize(config, args)
+        logging.info('LSDMap initialized')
 
         if size > self.npoints:
-            raise ValueError("number of threads should be less than the number of frames")
+            logging.error("number of threads should be less than the number of frames")
+            raise ValueError
 
         idxs_thread = self.get_idxs_thread(comm)
         npoints_thread = len(idxs_thread)
@@ -219,13 +232,9 @@ class LSDMap(object):
         weights_thread = np.array([self.weights[idx] for idx in idxs_thread])
 
         # compute the distance matrix
-        if rank == 0:
-            time1 = time()
         DistanceMatrix = mt.DistanceMatrix(coords_thread, self.coords, metric=self.metric)
         distance_matrix_thread = DistanceMatrix.distance_matrix
-        if rank == 0:
-            time2 = time()
-            print "time estimated to compute the distance matrix: %.3f " %(time2 - time1)
+        logging.info("distance matrix computed")
 
         # compute kth neighbor local scales if needed
         if self.status_epsilon == 'kneighbor':
@@ -255,7 +264,9 @@ class LSDMap(object):
         self.eigs = eigs
         self.evs = evs
 
-        if rank == 0:
-            time2 = time()
-            print "time estimated to diagonalize the kernel: %.3f " %(time2 - time1)
+        logging.info("kernel diagonalized")
+    
+        if rank ==0:    
             self.save(args.output_file)
+
+        logging.info("LSDMap computation done")
