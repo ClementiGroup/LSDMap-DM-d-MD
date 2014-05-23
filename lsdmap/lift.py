@@ -4,12 +4,14 @@ import argparse
 import ConfigParser
 import pickle
 import random
+import logging
 from time import time
 
 import numpy as np
 from mpi4py import MPI
 
-from lsdmap.reader import reader
+from lsdmap.rw import reader
+from lsdmap.rw import writer
 from lsdmap.util import metric as mt
 
 
@@ -32,6 +34,15 @@ class LSDMapLift(object):
         if not all(weight == 1.0 for weight in LSDMap.weights):
             raise ValueError("file %s contains weighted version of LSDMap; cannot lift points from weighted LSDMap")
 
+        self.niters = args.niters
+        self.value_b = args.value_b
+
+        temperatures = [args.temperature_max]
+        for idx in xrange(args.nsteps-1):
+            temperatures.append((1-args.ratio)*temperatures[idx])
+
+        self.temperatures = temperatures
+
     def create_arg_parser(self):
 
         parser = argparse.ArgumentParser(description="Lifting from diffusion map to physical variables...") # message displayed when typing llsdmap -h
@@ -50,6 +61,18 @@ class LSDMapLift(object):
            help='LSDMap file (input): lsdmap')
 
         # other options
+        parser.add_argument("-o",
+            type=str,
+            dest="output_file",
+            help='File containing the output configurations (output, opt.): .gro',
+            default='out.gro')
+
+        parser.add_argument("-e",
+            type=str,
+            dest="ev_output_file",
+            help='File containing the output eigenvectors (output, opt.): .ev',
+            default='out.ev')
+
         parser.add_argument("-n",
            "--nevs",
            type=int,
@@ -108,48 +131,50 @@ class LSDMapLift(object):
         fac1 = (1.0 - fac)/self.ndof
         fac2 = fac1 - fac
 
-        coords = self.ssimplex * fac1 - self.simplex[self.idx_hi,:] * fac2
-        evs = self.nystrom(coords[np.newaxis], LSDMap)
+        coords = self._ssimplex * fac1 - self._simplex[self._idx_hi,:] * fac2
+        evs = self.nystrom(coords[np.newaxis], LSDMap, self.nevs)
         value = self.cost_function(evs, target)
 
-        if value[0] <= self.value_b:
-            self.coords_b = coords
-            self.value_b = value[0]
+        if value[0] <= self._value_b:
+            self._coords_b = coords
+            self._value_b = value[0]
 
-        value_rand = value[0] - self.temperature*np.log(np.random.rand());
+        value_rand = value[0] - self._temperature*np.log(np.random.rand());
 
-        if value_rand < self.value_hi:
-            self.values[self.idx_hi] = value[0]
-            self.value_hi = value_rand
-            self.ssimplex += coords - self.simplex[self.idx_hi,:]
-            self.simplex[self.idx_hi,:] = coords
+        if value_rand < self._value_hi:
+            self._values[self._idx_hi] = value[0]
+            self._value_hi = value_rand
+            self._ssimplex += coords - self._simplex[self._idx_hi,:]
+            self._simplex[self._idx_hi,:] = coords
 
         return value_rand
 
-    def neldermead(self, target, LSDMap, simplex, values, value_b, temperature, niters=1000):
+    def neldermead(self, target, LSDMap, simplex, values, value_b, temperature):
         """
         Nelder Mead method used to find the minimum of cost function at a given temperature
         """
 
-        self.simplex = simplex
-        self.values = values
-        self.temperature = temperature
-        self.value_b = value_b
+        niters = self.niters
 
-        self.ssimplex = np.sum(self.simplex, axis=0) # ssimplex has self.ndof components
+        self._simplex = simplex
+        self._values = values
+        self._temperature = temperature
+        self._value_b = value_b
+
+        self._ssimplex = np.sum(self._simplex, axis=0) # ssimplex has self.ndof components
 
         while True:
 
-            values_rand = values - self.temperature*np.log(np.random.rand(self.ndof+1))
+            values_rand = values - self._temperature*np.log(np.random.rand(self.ndof+1))
             values_rand_idxs = np.argsort(values_rand)
 
-            self.idx_l = values_rand_idxs[0]
-            self.idx_hi = values_rand_idxs[-1]
-            self.idx_nhi = values_rand_idxs[-2]
+            self._idx_l = values_rand_idxs[0]
+            self._idx_hi = values_rand_idxs[-1]
+            self._idx_nhi = values_rand_idxs[-2]
 
-            self.value_l = values_rand[self.idx_l]
-            self.value_hi = values_rand[self.idx_hi]
-            self.value_nhi = values_rand[self.idx_nhi]
+            self._value_l = values_rand[self._idx_l]
+            self._value_hi = values_rand[self._idx_hi]
+            self._value_nhi = values_rand[self._idx_nhi]
 
             #print rtol
             if niters < 0:
@@ -158,34 +183,34 @@ class LSDMapLift(object):
             niters -= 2
             new_value = self.generate_new_value(target, LSDMap, -1.0)
 
-            if new_value <= self.value_l:
+            if new_value <= self._value_l:
                 new_value = self.generate_new_value(target, LSDMap, 2.0)
-            elif new_value >= self.value_nhi:
-                value_save = self.value_hi
+            elif new_value >= self._value_nhi:
+                value_save = self._value_hi
                 new_value = self.generate_new_value(target, LSDMap, 0.5)
                 if new_value >= value_save:
                     for idx in xrange(self.ndof+1):
-                        if idx != self.idx_l:
-                            self.ssimplex = 0.5*(self.simplex[idx,:]+self.simplex[self.idx_l,:])
-                            self.simplex[idx,:] = self.ssimplex
-                            evs = self.nystrom(self.ssimplex[np.newaxis], LSDMap)
-                            self.values[idx] = self.cost_function(evs, target)
+                        if idx != self._idx_l:
+                            self._ssimplex = 0.5*(self._simplex[idx,:]+self._simplex[self._idx_l,:])
+                            self._simplex[idx,:] = self._ssimplex
+                            evs = self.nystrom(self._ssimplex[np.newaxis], LSDMap, self.nevs)
+                            self._values[idx] = self.cost_function(evs, target)
                     niters -= self.ndof
-                    self.ssimplex = np.sum(self.simplex, axis=0)
+                    self._ssimplex = np.sum(self._simplex, axis=0)
             else:
                 niters +=1
 
-        tmp = self.values[0]
-        self.values[0] = self.values[self.idx_l]
-        self.values[self.idx_l] = tmp
+        tmp = self._values[0]
+        self._values[0] = self._values[self._idx_l]
+        self._values[self._idx_l] = tmp
 
-        tmp = self.simplex[0,:]
-        self.simplex[0,:] = self.simplex[self.idx_l,:]
-        self.simplex[self.idx_l] = tmp
+        tmp = self._simplex[0,:]
+        self._simplex[0,:] = self._simplex[self._idx_l,:]
+        self._simplex[self._idx_l] = tmp
 
-        return self.simplex, self.values, self.value_b
+        return self._simplex, self._values, self._value_b
 
-    def nystrom(self, coords, LSDMap):
+    def nystrom(self, coords, LSDMap, nevs):
         """
         compute eigenvectors of coordinates coords using nystrom formula
         """
@@ -215,12 +240,50 @@ class LSDMapLift(object):
         norm = np.sqrt(np.sum((LSDMap.evsu/np.sqrt(LSDMap.d_vector[:,np.newaxis]))**2, axis=0))
         evs /= norm[np.newaxis,:]
 
-        evs = np.fliplr(evs)[:,:self.nevs]
+        evs = np.fliplr(evs)[:,:nevs]
 
         return evs
 
     def cost_function(self, evs, target, alpha=1000):
         return alpha*np.sum((evs - target)**2, axis=1)
+
+
+    def get_idxs_thread(self, comm):
+        """
+        get the indices of the coordinates that will be consider by each processor (use MPI)
+        """
+        size = comm.Get_size()
+        rank = comm.Get_rank()
+
+        npoints_per_thread = np.array([self.ntargets/size for idx in range(size)])
+
+        for idx in range(self.ntargets%size):
+            npoints_per_thread[idx]+=1
+
+        if rank == 0:
+            idx_shift = 0
+            idxs_threads = []
+            for idx in npoints_per_thread:
+                idxs_threads.append(range(idx_shift,idx_shift+idx))
+                idx_shift += idx
+        else:
+            idxs_threads = None
+
+        idxs_thread = comm.scatter(idxs_threads, root=0)
+
+        return idxs_thread
+
+
+    def save(self, LSDMap, output_file, ev_output_file):
+        """
+        save configurations in output_file and eigenvectors in ev_output_file
+        """
+        struct_file_writer = writer.open(LSDMap.struct_filename)
+        struct_file_writer.write(self.coords, output_file)
+
+        evfile_writer = writer.open(format='.ev')
+        evfile_writer.write(self.evs, ev_output_file)
+
 
     def run(self):
         #initialize mpi variables
@@ -231,28 +294,43 @@ class LSDMapLift(object):
         parser = self.create_arg_parser()
         args = parser.parse_args()
 
+        logging.basicConfig(filename='lift.log',
+                            filemode='w',
+                            format="%(levelname)s:%(name)s:%(asctime)s: %(message)s",
+                            datefmt="%H:%M:%S",
+                            level=logging.DEBUG)
+
+        # consider calling initialize function right after setting parsers
+
+        logging.info('intializing LSDMap lift...')
+
         with open(args.lsdmap_file, "r") as file:
             LSDMap = pickle.load(file)
 
         self.initialize(args, LSDMap)
 
-        temperature_max = args.temperature_max
-        ratio = args.ratio
-        nsteps = args.nsteps
-        niters = args.niters
-        value_b = args.value_b
+        if size > self.ntargets:
+            logging.error("number of threads should be less than the number of frames")
+            raise ValueError
 
-        temperatures = [temperature_max]
-        for idx in xrange(nsteps-1):
-            temperatures.append((1-ratio)*temperatures[idx])
-        print "temperature max: %.3f" %temperatures[0]
-        print "temperature min: %.3f" %temperatures[-1]
+        idxs_thread = self.get_idxs_thread(comm)
+        npoints_thread = len(idxs_thread)
 
-        target = self.targets[0]
+        targets_thread = np.array([self.targets[idx] for idx in idxs_thread])
+        coords = []
 
-        simplex, values = self.initialize_simplex(target, LSDMap)
-        for temperature in temperatures:
-            simplex, values, value_b = self.neldermead(target, LSDMap, simplex, values, value_b, temperature, niters=niters)
+        for target in targets_thread:    
+            simplex, values = self.initialize_simplex(target, LSDMap)
+            value_b = self.value_b
+            for temperature in self.temperatures:
+                simplex, values, value_b = self.neldermead(target, LSDMap, simplex, values, value_b, temperature)
+            coords.append(simplex[0])
+       
+        self.coords = np.array(comm.allgather(np.array(coords)))
+        self.coords = np.concatenate(self.coords, axis=0)
+        self.evs = self.nystrom(self.coords, LSDMap, 10)
 
-        evs = self.nystrom(simplex[0,:][np.newaxis], LSDMap)
-        print target, evs[0]
+        if rank == 0:
+            self.save(LSDMap, args.output_file, args.ev_output_file)
+
+        logging.info("LSDMap lifting done")

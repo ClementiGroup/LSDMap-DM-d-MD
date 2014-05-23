@@ -1,4 +1,4 @@
-"""Reader for .xvg files containing angles."""
+"""Reader for .xvg files."""
 
 import numpy as np
 import itertools as it
@@ -40,6 +40,7 @@ class Reader(object):
                         coords.append(map(float, line)[1])
                 else: # multiple input files are supposed to be only created using g_chi -all
                     coords.append(map(float, line)[1])
+#            return np.array(coords)
             return pi*np.array(coords)/180. #switch from degrees to radians before returning
         except StopIteration:
             return None

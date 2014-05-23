@@ -8,7 +8,7 @@ import random
 import logging
 from time import time
 
-from lsdmap.reader import reader
+from lsdmap.rw import reader
 from lsdmap.util import p_arpack
 from lsdmap.util import metric as mt
 

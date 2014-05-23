@@ -1,4 +1,4 @@
-"""Reader for .ev files"""
+"""Reader/Writer for .ev files"""
 
 import numpy as np
 import itertools as it
@@ -17,7 +17,8 @@ class Reader(sl.Reader):
 
     def next(self):
         try:
-            return map(float, self.file.next().split())
+            values = map(float, self.file.next().split()) 
+            return np.array(values)
         except StopIteration:
             return None
 
@@ -29,3 +30,9 @@ class Reader(sl.Reader):
             evs = self.next()
         return np.array(evss)
 
+    readline = next
+
+class Writer(object):
+
+    def write(self, evs, filename, mode='w'):
+        np.savetxt(filename, evs, fmt='%15.7e')

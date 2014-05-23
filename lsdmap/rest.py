@@ -9,7 +9,7 @@ from time import time
 import numpy as np
 from mpi4py import MPI
 
-from lsdmap.reader import reader
+from lsdmap.rw import reader
 from lsdmap.util import metric as mt
 
 
