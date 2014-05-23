@@ -88,7 +88,7 @@ ext_modules = [Extension(
 
 setup(name='lsdmap',
       version='2.0.2',
-      packages=['lsdmap', 'lsdmap.util', 'lsdmap.reader'],
+      packages=['lsdmap', 'lsdmap.util', 'lsdmap.rw'],
       scripts = ['bin/lsdmap','bin/rlsdmap','bin/llsdmap'],
       ext_modules = ext_modules,
       cmdclass = cmdclass,
