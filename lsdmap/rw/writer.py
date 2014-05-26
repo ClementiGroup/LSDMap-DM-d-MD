@@ -5,7 +5,7 @@ class WriterError(Exception):
 
 class GroFormat(object):
     """
-    class used to read .gro file(s)
+    class used to write .gro file(s)
     """
     def open(self, *args):
         import gro
@@ -15,7 +15,7 @@ class GroFormat(object):
 
 class EvFormat(object):
     """
-    class used to read .ev files
+    class used to write .ev files
     """
     def open(self, *args):
         import ev

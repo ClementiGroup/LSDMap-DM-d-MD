@@ -75,10 +75,9 @@ class LSDMap(object):
         if args.wfile is not None:
             wfile = reader.open(args.wfile)
             weights = wfile.readlines()
-        else: 
+        else:
             weights = np.ones(self.npoints, dtype='float')
         self.weights = weights
-
 
     def create_arg_parser(self):
 
@@ -153,7 +152,7 @@ class LSDMap(object):
         d_vector_thread = np.zeros(npoints_thread, dtype='float')
 
         # compute LSDMap kernel, Eq. (5) of the above paper
-        kernel = np.sqrt(weights_thread[:, np.newaxis].dot(self.weights[np.newaxis])) * \
+        kernel = np.sqrt((weights_thread[:, np.newaxis]).dot(self.weights[np.newaxis])) * \
                  np.exp(-distance_matrix_thread**2/(2*epsilon_thread[:, np.newaxis].dot(self.epsilon[np.newaxis])))
 
         p_vector_thread = np.sum(kernel, axis=1)

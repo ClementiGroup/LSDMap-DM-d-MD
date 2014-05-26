@@ -3,15 +3,13 @@
 import numpy as np
 import itertools as it
 
-pi = 3.14159265359
 
 class XvgError(Exception):
     pass
 
 class Reader(object):
-    global pi
 
-    def __init__(self, filename):
+    def __init__(self, filename, **kwargs):
 
         if isinstance(filename, basestring):
             filename = [filename]
@@ -20,6 +18,11 @@ class Reader(object):
         self.filename = filename
         self.nfiles = len(self.filename)
         self.file = [open(name, 'r') for name in self.filename]
+
+        if 'col' in kwargs:
+            self._col = kwargs['col']
+        else:
+            self._col = None
 
     def read(self):
 
@@ -33,15 +36,11 @@ class Reader(object):
             coords = []
             for file in self.file:
                 line = file.next().split()
-                if self.nfiles == 1:
-                    if len(line) > 2: # check if .xvg file was created using g_angle -all -ov ...
-                        coords.extend(map(float, line)[2:]) # in this case all columns after the second one are important
-                    else: # else the file was created using g_chi -all
-                        coords.append(map(float, line)[1])
-                else: # multiple input files are supposed to be only created using g_chi -all
+                if self._col is not None:
+                    coords.extend(map(float, line)[self._col])
+                else: #if self._col is not specified read column 1
                     coords.append(map(float, line)[1])
-#            return np.array(coords)
-            return pi*np.array(coords)/180. #switch from degrees to radians before returning
+            return np.array(coords)
         except StopIteration:
             return None
 

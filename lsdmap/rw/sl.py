@@ -35,7 +35,7 @@ class Reader(object):
         while value is not None:
             values.append(value)
             value = self.next()
-        return values
+        return np.array(values)
 
     def __iter__(self):
         return self.read()

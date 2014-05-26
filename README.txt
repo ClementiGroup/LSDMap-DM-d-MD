@@ -94,7 +94,7 @@ or using MPI:
 
     mpiexec -n <number_of_processors> rlsdmap -s <lsdmap_file> -c <structure_file> <other_options>
 
-where lsdmap_file is the .lsdmap file generated using lsdmap script
+where lsdmap_file is the .lsdmap file generated using lsdmap script.
 
 
 For more information on rlsdmap command, simply type:
@@ -102,18 +102,23 @@ For more information on rlsdmap command, simply type:
     rlsdmap -h
 
 
-Lifting (dev.)
---------------
+Lifting
+-------
 
-Lifting from diffusion map to physical variables can computed by
+Lifting from diffusion map to physical variables can be computed by
 calling "llsdmap" script after LSDMap has been computed. Typical
 usage of llsdmap is:
 
     llsdmap -s <lsdmap_file> -f <eigenvectors_file> <other_options>
 
+or using MPI:
+
+    mpiexec -n <number_of_processors> rlsdmap -s <lsdmap_file> -c
+<structure_file> <other_options>
+
 where lsdmap_file is the .lsdmap file generated using lsdmap script
-and eigenvectors_file is file containing all the eigenvectors in .ev
-format (llsdmap has not been implemented in parallel yet).
+and eigenvectors_file is the file containing all the eigenvectors in .ev
+format.
 
 For more information on llsdmap command, simply type:
 
