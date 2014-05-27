@@ -37,7 +37,7 @@ class Reader(object):
             for file in self.file:
                 line = file.next().split()
                 if self._col is not None:
-                    coords.extend(map(float, line)[self._col])
+                    coords.append(map(float, line)[self._col])
                 else: #if self._col is not specified read column 1
                     coords.append(map(float, line)[1])
             return np.array(coords)
