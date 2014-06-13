@@ -19,9 +19,10 @@ class Metric(object):
         used directly to compute the distance.
 
     """
-    def __init__(self, metric, ndim=3):
+    def __init__(self, metric, ndim=3, **kwargs):
 
         self.ndim = ndim
+        self.prms = kwargs
 
         if type(metric)==str:
             self.metric_name = metric
@@ -35,7 +36,7 @@ class Metric(object):
         return pyqcprot.CalcRMSDRotationalMatrix(coord1, coord2, None, None)
 
     def _h_cmd(self, coord1, coord2):
-        return util.cmd(coord1, coord2, 0.75)
+        return util.cmd(coord1, coord2, self.r0)
 
     def _h_dihedral(self, coord1, coord2):
         return util.dihedral(coord1, coord2)
@@ -58,6 +59,12 @@ class Metric(object):
         if metric_name in metric3D_names:
             if self.ndim != 3:
                 raise ValueError('%s is a 3D metric. Please check the spatial dimensions of your coordinates'%metric_name)
+
+        if metric_name == 'cmd':
+            if 'r0' in self.prms:
+                self.r0 = self.prms['r0']
+            else:
+                self.r0 = 0.75
 
         metric_func_name = "_h_" + metric_name
 
@@ -109,7 +116,7 @@ class DistanceMatrix(object):
     >>> idx_neighbor_matrix = DistanceMatrix.idx_neighbor_matrix(k=10) # (dimensions: n1 * k)
     """
 
-    def __init__(self, coords1, coords2, metric='rmsd'):
+    def __init__(self, coords1, coords2, metric='rmsd', metric_prms={}):
        
        self.coords1 = np.array(coords1)
        self.coords2 = np.array(coords2)
@@ -137,7 +144,7 @@ class DistanceMatrix(object):
        else:
            raise TypeError('coords1 and coords2 should have a number of dimensions 1 < ndim < 4;                                                                                                      if only one coordinate is used, consider using coords1[np.newaxis] or coords2[np.newaxis]')
            
-       self.metric = Metric(metric, ndim=self.ndim).function
+       self.metric = Metric(metric, ndim=self.ndim, **metric_prms).function
 
        self.ncoords1 = self.coords1.shape[0]
        self.ncoords2 = self.coords2.shape[0]
@@ -186,7 +193,8 @@ class DistanceMatrix(object):
         if k is not None:
             if k >= self.ncoords2:
                 print "Warning: k > = number of data points "
-        else: k = self.ncoords2
+        else:
+            k = self.ncoords2
 
         if (self.ncoords1*k) > self.maxsize:
             raise ValueError("Large distance matrix expected! use more threads to avoid too much memory")
@@ -196,14 +204,13 @@ class DistanceMatrix(object):
 
         if hasattr(self, '_distance_matrix'):
             for idx, distance in enumerate(self._distance_matrix):
-                idx_neighbors = np.argsort(distance)[:k]  # the first element is the point itself
+                idx_neighbors = np.argsort(distance)[:k]  # CAUTION: the first element is the point itself
                 idx_neighbor_matrix[idx] = idx_neighbors
-
                 neighbor_matrix[idx] = [distance[idx_neighbor] for idx_neighbor in idx_neighbors]
         else:
             for idx, coord1 in enumerate(self.coords1):
                 distance = np.array([self.metric(coord1, coord2) for coord2 in self.coords2])    
-                idx_neighbors = np.argsort(distance)[:k]  # the first element is the point itself
+                idx_neighbors = np.argsort(distance)[:k]  # CAUTION: the first element is the point itself
                 idx_neighbor_matrix[idx] = idx_neighbors
                 neighbor_matrix[idx] = [distance[idx_neighbor] for idx_neighbor in idx_neighbors]
 

@@ -31,8 +31,8 @@ class LSDMap(object):
 
         self.initialize_local_scale()
         self.initialize_weights()
+        self.initialize_metric()
 
-        self.metric = config.get('GENERAL','metric')
         self.neigs = 10
 
 
@@ -41,8 +41,8 @@ class LSDMap(object):
         config = self.config
         args = self.args
 
-        known_status = ['constant', 'kneighbor', 'user']
-        _mapped = {'const': 'constant', 'cst': 'constant'}
+        known_status = ['constant', 'kneighbor', 'user', 'kneighbor_mean']
+        _mapped = {'const': 'constant', 'cst': 'constant', 'mean-kneighbor': 'mean_kneighbor'}
 
         if args.epsfile is None:
             status = config.get('LOCALSCALE','status')
@@ -50,7 +50,7 @@ class LSDMap(object):
                 status = _mapped[status]
             if not status in known_status:
                 raise ValueError("local scale status should be one of "+ ', '.join(known_status))
-            if status == 'kneighbor':
+            if status in ['kneighbor', 'kneighbor_mean']:
                 value = None
                 self.k = config.getint('LOCALSCALE', 'k')
             if status == 'constant':
@@ -79,6 +79,22 @@ class LSDMap(object):
             weights = np.ones(self.npoints, dtype='float')
         self.weights = weights
 
+
+    def initialize_metric(self):
+
+        _known_prms = ['r0']
+
+        config = self.config
+        self.metric = config.get('GENERAL','metric')
+
+        self.metric_prms = {}
+        for prm in _known_prms:
+            try:
+                self.metric_prms[prm] = config.getfloat('GENERAL', prm)
+            except:
+                pass
+
+
     def create_arg_parser(self):
 
         parser = argparse.ArgumentParser(description="Run LSDMap..") # message displayed when typing lsdmap -h
@@ -101,7 +117,22 @@ class LSDMap(object):
         parser.add_argument("-o",
             type=str,
             dest="output_file",
-            help='LSDMap file (output, opt.): .lsdmap')
+            help='LSDMap file (output, opt.): lsdmap')
+
+        parser.add_argument("--nn",
+            type=str,
+            dest="nnfile",
+            help='File containing the indices of the nearest neighbors of all configurations of the structure file (output, opt.): nn')
+
+        parser.add_argument("--nneighbors",
+            type=int,
+            dest="nneighbors",
+            help="Number of nearest neighbors stored in .nn file; should be used with option --nn.")
+
+        parser.add_argument("--nneighbors_cutoff",
+            type=float,
+            dest="nneighbors_cutoff",
+            help="Only the indices of neighbors closer than a distance of nneighbors_cutoff are stored in .nn file; should be used with option --nn.")
 
         parser.add_argument("-w",
             type=str,
@@ -112,6 +143,7 @@ class LSDMap(object):
             type=str,
             dest="epsfile",
             help='File containing the local scales of every point in a row (input, opt.): .eps')
+
 
         return parser
 
@@ -169,10 +201,13 @@ class LSDMap(object):
         return kernel
 
 
-    def save(self, lsdmap_filename):
+    def save(self, args):
         """
         save LSDMap object in .lsdmap file and eigenvalues/eigenvectors in .eg/.ev files
         """
+
+        lsdmap_filename = args.output_file
+
         if isinstance(self.struct_filename, list):
             struct_filename = self.struct_filename[0]
         else:
@@ -193,7 +228,44 @@ class LSDMap(object):
         with open(lsdmap_filename, "w") as file:
             pickle.dump(self, file)
 
-        logging.info("LSDMap object and eigenvalues/eigenvectors saved (.lsdmap and .eg/.ev files)")
+
+    def save_nneighbors(self, comm, args, DistanceMatrix):
+
+        size = comm.Get_size()  # number of threads
+        rank = comm.Get_rank()  # number of the current thread
+
+        if rank == 0:
+            try:
+                os.remove(args.nnfile)
+            except OSError:
+                pass
+            nnfile = open(args.nnfile, 'a')
+            for idx in xrange(size):
+                if idx == 0:
+                    idx_neighbor_matrix = DistanceMatrix.idx_neighbor_matrix()
+                    neighbor_matrix = DistanceMatrix.neighbor_matrix()
+                else:
+                    idx_neighbor_matrix = comm.recv(source=idx, tag=idx)
+                    neighbor_matrix = comm.recv(source=idx, tag=1000+idx) 
+                if args.nneighbors is not None: # save first "args.nneighbors" nearest neighbors
+                    for idxs in idx_neighbor_matrix:
+                        np.savetxt(nnfile, idxs[:args.nneighbors][np.newaxis], fmt='%d')
+                elif args.nneighbors_cutoff is not None: # save all nearest neighbors within "args.nneighbors_cutoff"
+                    for idxrow, row in enumerate(neighbor_matrix):
+                        for idxcol, col in enumerate(row):
+                            if col > args.nneighbors_cutoff:
+                                break
+                        np.savetxt(nnfile, idx_neighbor_matrix[idxrow,:idxcol][np.newaxis], fmt='%d')
+                else: # save all nearest neighbors
+                    for idxs in idx_neighbor_matrix:
+                        np.savetxt(nnfile, idxs[np.newaxis], fmt='%d')
+            nnfile.close()
+        else:
+           idx_neighbor_matrix = DistanceMatrix.idx_neighbor_matrix()
+           neighbor_matrix = DistanceMatrix.neighbor_matrix()
+           comm.send(idx_neighbor_matrix, dest=0, tag=rank)
+           comm.send(neighbor_matrix, dest=0, tag=1000+rank)
+         
 
     def run(self):
 
@@ -215,7 +287,6 @@ class LSDMap(object):
                             level=logging.DEBUG)
 
         # consider calling initialize function right after setting parsers
-
         logging.info('intializing LSDMap...')
         self.initialize(config, args)
         logging.info('LSDMap initialized')
@@ -231,14 +302,27 @@ class LSDMap(object):
         weights_thread = np.array([self.weights[idx] for idx in idxs_thread])
 
         # compute the distance matrix
-        DistanceMatrix = mt.DistanceMatrix(coords_thread, self.coords, metric=self.metric)
+        DistanceMatrix = mt.DistanceMatrix(coords_thread, self.coords, metric=self.metric, metric_prms=self.metric_prms)
         distance_matrix_thread = DistanceMatrix.distance_matrix
         logging.info("distance matrix computed")
 
         # compute kth neighbor local scales if needed
-        if self.status_epsilon == 'kneighbor':
-            epsilon_thread = DistanceMatrix.neighbor_matrix(k=self.k+1)[:,-1]
+        if self.status_epsilon in ['kneighbor', 'kneighbor_mean']:
+            epsilon_thread = []
+            idx_neighbor_matrix_thread = DistanceMatrix.idx_neighbor_matrix()
+            for idx, line in enumerate(idx_neighbor_matrix_thread):
+                cum_weight = 0
+                for jdx in line[1:]:
+                    cum_weight += self.weights[jdx]
+                    if cum_weight >= self.k:
+                        break
+                epsilon_thread.append(distance_matrix_thread[idx,jdx])
+
             self.epsilon = np.hstack(comm.allgather(epsilon_thread)) # gather epsilon values
+            if self.status_epsilon == 'kneighbor_mean':
+                mean_value_epsilon = np.mean(self.epsilon) # compute the mean value of the local scales
+                self.epsilon = mean_value_epsilon * np.ones(self.npoints)  # and set it as the new constant local scale
+
         epsilon_thread = np.array([self.epsilon[idx] for idx in idxs_thread])
 
         # compute kernel
@@ -266,6 +350,11 @@ class LSDMap(object):
         logging.info("kernel diagonalized")
     
         if rank ==0:    
-            self.save(args.output_file)
+            self.save(args)
+        logging.info("LSDMap object and eigenvalues/eigenvectors saved (.lsdmap and .eg/.ev files)")
+
+        # store nearest neighbors in .nn file if specified via --nn option
+        if args.nnfile is not None:
+            self.save_nneighbors(comm, args, DistanceMatrix)
 
         logging.info("LSDMap computation done")

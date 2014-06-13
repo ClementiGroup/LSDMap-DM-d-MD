@@ -1,4 +1,4 @@
-"""Reader for files containing a single line."""
+"""Reader/Writer for files containing a single line."""
 
 import numpy as np
 import itertools as it
@@ -41,3 +41,9 @@ class Reader(object):
         return self.read()
 
     readline = next
+
+
+class Writer(object):
+
+    def write(self, values, filename, mode='w'):
+        np.savetxt(filename, values, fmt='%15.7e')

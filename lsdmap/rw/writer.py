@@ -21,8 +21,18 @@ class EvFormat(object):
         import ev
         return ev.Writer()
 
+class SlFormat(object):
+    """
+    class used to write files with a single column
+    """
+    def open(self, *args):
+        import sl
+        return sl.Writer()
+
+
 known_formats={'.gro': GroFormat(),
-               '.ev': EvFormat()
+               '.ev': EvFormat(),
+               '.eps': SlFormat()
 }
 
 class WriterFormatError(WriterError):
@@ -39,6 +49,13 @@ class WriterFormatError(WriterError):
 def open(*args, **kargs):
     """
     *args corresponds to the file that will be used as a pattern to write the new data
+
+    Examples
+    --------
+
+    writer.open(format='.eps') will create a sl.writer instance
+    writer.open('aladip.gro') will create a gro.writer instance with file pattern aladip.gro
+
     """
 
     if 'format' not in kargs:

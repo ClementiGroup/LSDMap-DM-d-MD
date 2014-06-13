@@ -32,7 +32,7 @@ class LSDMapRest(object):
 
         self.weights = weights
 
-        if LSDMap.status_epsilon == 'constant':
+        if LSDMap.status_epsilon in ['constant', 'kneighbor_mean']:
             self.epsilon = LSDMap.epsilon[:self.npoints]
         elif LSDMap.status_epsilon == 'user':
             raise NotImplementedError
