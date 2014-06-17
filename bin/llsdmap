@@ -1,4 +1,4 @@
-#!/home/jp43/local/bin/python
+#!/usr/bin/env python
 
 import lsdmap.lift as lift
 
