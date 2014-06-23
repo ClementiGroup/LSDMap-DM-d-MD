@@ -31,7 +31,8 @@ class SlFormat(object):
 
 known_formats={'.gro': GroFormat(),
                '.ev': EvFormat(),
-               '.eps': SlFormat()
+               '.eps': SlFormat(),
+               '.w': SlFormat()
 }
 
 class WriterFormatError(WriterError):
