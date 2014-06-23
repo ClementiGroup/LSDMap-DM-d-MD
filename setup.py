@@ -87,9 +87,9 @@ ext_modules = [Extension(
     )]
 
 setup(name='lsdmap',
-      version='2.0.2',
-      packages=['lsdmap', 'lsdmap.util', 'lsdmap.rw'],
-      scripts = ['bin/lsdmap','bin/rlsdmap','bin/llsdmap'],
+      version='2.1.0',
+      packages=['lsdmap', 'lsdmap.util', 'lsdmap.rw', 'dmdmd', 'dmdmd.util'],
+      scripts = ['bin/lsdmap','bin/rlsdmap','bin/llsdmap','bin/dmdmd','bin/reweighting','bin/selection','bin/p_mdrun'],
       ext_modules = ext_modules,
       cmdclass = cmdclass,
       license='LICENSE.txt',

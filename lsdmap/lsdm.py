@@ -72,13 +72,15 @@ class LSDMap(object):
         config = self.config
         args = self.args
 
-        if args.wfile is not None:
-            wfile = reader.open(args.wfile)
-            weights = wfile.readlines()
+        if args.wfile is None:
+            self.weights = np.ones(self.npoints, dtype='float')
         else:
-            weights = np.ones(self.npoints, dtype='float')
-        self.weights = weights
-
+            if os.path.isfile(args.wfile):
+                wfile = reader.open(args.wfile)
+                self.weights = wfile.readlines()
+            else:
+                logging.warning('.w file does not exist, set weights to 1.0.')
+                self.weights = np.ones(self.npoints, dtype='float')
 
     def initialize_metric(self):
 
@@ -119,20 +121,12 @@ class LSDMap(object):
             dest="output_file",
             help='LSDMap file (output, opt.): lsdmap')
 
-        parser.add_argument("--nn",
+        parser.add_argument("-n",
             type=str,
             dest="nnfile",
-            help='File containing the indices of the nearest neighbors of all configurations of the structure file (output, opt.): nn')
-
-        parser.add_argument("--nneighbors",
-            type=int,
-            dest="nneighbors",
-            help="Number of nearest neighbors stored in .nn file; should be used with option --nn.")
-
-        parser.add_argument("--nneighbors_cutoff",
-            type=float,
-            dest="nneighbors_cutoff",
-            help="Only the indices of neighbors closer than a distance of nneighbors_cutoff are stored in .nn file; should be used with option --nn.")
+            help='File containing the indices of the nearest neighbors of all configurations\
+                  within the structure file (output, opt.): nn.\n When --ns or --nc flags are not\
+                  specified: store only the neighbors within the range of the local scale.')
 
         parser.add_argument("-w",
             type=str,
@@ -143,6 +137,16 @@ class LSDMap(object):
             type=str,
             dest="epsfile",
             help='File containing the local scales of every point in a row (input, opt.): .eps')
+
+        parser.add_argument("--ns",
+            type=int,
+            dest="nneighbors",
+            help="Number of nearest neighbors stored in .nn file; should be used with option -n")
+
+        parser.add_argument("--nc",
+            type=float,
+            dest="nneighbors_cutoff",
+            help="Only the indices of neighbors closer than a distance of nneighbors_cutoff are stored in .nn file; should be used with option -n")
 
 
         return parser
@@ -229,7 +233,7 @@ class LSDMap(object):
             pickle.dump(self, file)
 
 
-    def save_nneighbors(self, comm, args, DistanceMatrix):
+    def save_nneighbors(self, comm, args, DistanceMatrix_thread, epsilon_thread):
 
         size = comm.Get_size()  # number of threads
         rank = comm.Get_rank()  # number of the current thread
@@ -242,29 +246,35 @@ class LSDMap(object):
             nnfile = open(args.nnfile, 'a')
             for idx in xrange(size):
                 if idx == 0:
-                    idx_neighbor_matrix = DistanceMatrix.idx_neighbor_matrix()
-                    neighbor_matrix = DistanceMatrix.neighbor_matrix()
+                    idx_neighbor_matrix = DistanceMatrix_thread.idx_neighbor_matrix()
+                    neighbor_matrix = DistanceMatrix_thread.neighbor_matrix()
+                    epsilon = epsilon_thread
                 else:
                     idx_neighbor_matrix = comm.recv(source=idx, tag=idx)
-                    neighbor_matrix = comm.recv(source=idx, tag=1000+idx) 
+                    neighbor_matrix = comm.recv(source=idx, tag=1000+idx)
+                    epsilon = comm.recv(source=idx, tag=2000+idx)
                 if args.nneighbors is not None: # save first "args.nneighbors" nearest neighbors
                     for idxs in idx_neighbor_matrix:
-                        np.savetxt(nnfile, idxs[:args.nneighbors][np.newaxis], fmt='%d')
+                        np.savetxt(nnfile, idxs[:min(args.nneighbors,self.npoints)][np.newaxis], fmt='%d')
                 elif args.nneighbors_cutoff is not None: # save all nearest neighbors within "args.nneighbors_cutoff"
                     for idxrow, row in enumerate(neighbor_matrix):
                         for idxcol, col in enumerate(row):
                             if col > args.nneighbors_cutoff:
                                 break
                         np.savetxt(nnfile, idx_neighbor_matrix[idxrow,:idxcol][np.newaxis], fmt='%d')
-                else: # save all nearest neighbors
-                    for idxs in idx_neighbor_matrix:
-                        np.savetxt(nnfile, idxs[np.newaxis], fmt='%d')
+                else: # save all nearest neighbors within the range of the local scale
+                    for idxrow, row in enumerate(neighbor_matrix):
+                        for idxcol, col in enumerate(row):
+                            if col > epsilon[idxrow]:
+                                break
+                        np.savetxt(nnfile, idx_neighbor_matrix[idxrow,:idxcol][np.newaxis], fmt='%d')
             nnfile.close()
         else:
-           idx_neighbor_matrix = DistanceMatrix.idx_neighbor_matrix()
-           neighbor_matrix = DistanceMatrix.neighbor_matrix()
+           idx_neighbor_matrix = DistanceMatrix_thread.idx_neighbor_matrix()
+           neighbor_matrix = DistanceMatrix_thread.neighbor_matrix()
            comm.send(idx_neighbor_matrix, dest=0, tag=rank)
            comm.send(neighbor_matrix, dest=0, tag=1000+rank)
+           comm.send(epsilon_thread, dest=0, tag=2000+rank)
          
 
     def run(self):
@@ -353,8 +363,8 @@ class LSDMap(object):
             self.save(args)
         logging.info("LSDMap object and eigenvalues/eigenvectors saved (.lsdmap and .eg/.ev files)")
 
-        # store nearest neighbors in .nn file if specified via --nn option
+        # store nearest neighbors in .nn file if specified via -n option
         if args.nnfile is not None:
-            self.save_nneighbors(comm, args, DistanceMatrix)
+            self.save_nneighbors(comm, args, DistanceMatrix, epsilon_thread)
 
         logging.info("LSDMap computation done")

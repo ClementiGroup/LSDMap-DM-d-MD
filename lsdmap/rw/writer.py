@@ -7,25 +7,24 @@ class GroFormat(object):
     """
     class used to write .gro file(s)
     """
-    def open(self, *args):
+    def open(self, kwargs):
         import gro
-        pattern = args[0]
-        return gro.Writer(pattern)
+        return gro.Writer(**kwargs)
 
 
 class EvFormat(object):
     """
     class used to write .ev files
     """
-    def open(self, *args):
+    def open(self, **kwargs):
         import ev
-        return ev.Writer()
+        return ev.Writer(kwargs)
 
 class SlFormat(object):
     """
     class used to write files with a single column
     """
-    def open(self, *args):
+    def open(self, *kwargs):
         import sl
         return sl.Writer()
 
@@ -46,26 +45,19 @@ class WriterFormatError(WriterError):
         return 'Unknown molecule file format "%s"\n Available formats are %s.' % (self.format, self.known_formats.keys())
 
 
-def open(*args, **kargs):
+def open(format, **kwargs):
     """
     *args corresponds to the file that will be used as a pattern to write the new data
 
     Examples
     --------
 
-    writer.open(format='.eps') will create a sl.writer instance
-    writer.open('aladip.gro') will create a gro.writer instance with file pattern aladip.gro
+    writer.open('.eps') will create a sl.writer instance
+    writer.open('.gro', pattern='aladip.gro') will create a gro.writer instance with file pattern aladip.gro
 
     """
-
-    if 'format' not in kargs:
-        filename = args[0]
-        format = os.path.splitext(filename)[1]
-    else:
-        filename = None
-        format = kargs['format']
 
     if format not in known_formats:
         raise WriterFormatError(format, known_formats)
 
-    return known_formats[format].open(filename)
+    return known_formats[format].open(kwargs)

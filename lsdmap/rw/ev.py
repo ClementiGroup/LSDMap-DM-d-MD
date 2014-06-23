@@ -34,5 +34,8 @@ class Reader(sl.Reader):
 
 class Writer(object):
 
-    def write(self, evs, filename, mode='w'):
+    def __init__(self, **kwargs):
+        pass
+
+    def write(self, evs, filename):
         np.savetxt(filename, evs, fmt='%15.7e')

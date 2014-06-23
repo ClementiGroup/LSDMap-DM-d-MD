@@ -7,22 +7,34 @@ class GroError(Exception):
 
 class Reader(object):
 
-    def __init__(self, filename):
+    def __init__(self, filename, **kwargs):
 
         self.filename = filename
         self.file = open(filename, 'r')
+        try:
+            self.velocities = kwargs['velocities']
+        except KeyError:
+            self.velocities = False
+
+    @property
+    def firstline(self):
+        f = open(self.filename, 'r')
+        firstline = f.next()
+        f.close()
+        return firstline
 
     @property
     def residues(self):
-        return self._read_column(0)
+        return self._read_column(0, 8)
 
     @property
     def atoms(self):
-        return self._read_column(1)
+        return self._read_column(8, 15)
 
     @property
     def atoms_nums(self):
-        return self._read_column(2)
+        return self._read_column(15, 20)
+
 
     @property
     def box(self):
@@ -35,10 +47,12 @@ class Reader(object):
 
         for idx_atom, line in it.izip(xrange(natoms), f):
             pass
+        boxline = f.next()
+        f.close()
+        return map(float, boxline.split())
 
-        return map(float, f.next().split())
 
-    def _read_column(self, idx):
+    def _read_column(self, start, end):
         f = open(self.filename, 'r')
         try:
             f.next()
@@ -48,8 +62,9 @@ class Reader(object):
         column = []
 
         for idx_atom, line in it.izip(xrange(natoms), f):
-            column.append(line.split()[idx])
+            column.append(line[start:end].lstrip())
 
+        f.close()
         return column
 
 
@@ -72,13 +87,26 @@ class Reader(object):
         except StopIteration:
             raise GroError("File ended unexpectedly when reading number of atoms.")
 
-        config = np.zeros((3, natoms), dtype='float')
+        if self.velocities:
+            config = np.zeros((6, natoms), dtype='float')
 
-        for idx_atom, line in it.izip(xrange(natoms), self.file):
-            x, y, z = map(float, line.split()[3:6])
-            config[0, idx_atom] = x
-            config[1, idx_atom] = y
-            config[2, idx_atom] = z
+            for idx_atom, line in it.izip(xrange(natoms), self.file):
+                x, y, z, vx, vy, vz = map(float, line[20:].split())
+                config[0, idx_atom] = x
+                config[1, idx_atom] = y
+                config[2, idx_atom] = z
+                config[3, idx_atom] = vx
+                config[4, idx_atom] = vy
+                config[5, idx_atom] = vz
+ 
+        else:
+            config = np.zeros((3, natoms), dtype='float')
+
+            for idx_atom, line in it.izip(xrange(natoms), self.file):
+                x, y, z = map(float, line[20:].split()[:3])
+                config[0, idx_atom] = x
+                config[1, idx_atom] = y
+                config[2, idx_atom] = z
 
         try:
             box_line = self.file.next()
@@ -114,15 +142,18 @@ class Writer(object):
                # unitcell
                }
 
-    def __init__(self, pattern):
-        self.pattern = Reader(pattern)
+    def __init__(self, **kwargs):
+        try:
+            self.pattern = Reader(kwargs['pattern'])
+        except KeyError:
+            raise NotImplementedError('a file pattern is needed to write .gro files, please use writer.open(format, pattern=...)')
 
-    def write(self, coords, filename, format='xyz', mode='w'):
+    def write(self, coords, filename):
 
         coords = np.array(coords)
 
         if len(coords.shape) not in (2, 3):
-            raise ValueError('coordinates should be a array 2 or 3 dimensions') 
+            raise ValueError('coordinates should be an array 2 or 3 dimensions') 
         elif len(coords.shape) == 2:
             coords = np.array([coords])
 
@@ -131,7 +162,7 @@ class Writer(object):
         natoms = coords.shape[2]
 
         if ndim not in (3, 6) :
-            raise ValueError('coordinates should be a array with 3 or 6 rows (number of spatial dimensions) ')
+            raise ValueError('coordinates should be an array with 3 or 6 columns (number of spatial dimensions) ')
 
         residues = self.pattern.residues
         atoms = self.pattern.atoms
@@ -143,13 +174,25 @@ class Writer(object):
         
         with open(filename , 'w') as file:
             # Atom descriptions and coords
-            for coord in coords:
-                file.write('Protein\n')
-                file.write(self.fmt['numatoms'] %natoms)
-                for idx, [residue, atom, atom_num] in enumerate(it.izip(residues, atoms, atoms_nums)):
-                    output_line = self.fmt['xyz'] % \
-                        (residue, atom, atom_num, coord[0,idx], coord[1,idx], coord[2,idx])
-                    file.write(output_line)
-                for edge in box:
-                    file.write('%10.5f'% edge)
-                file.write('\n')
+            if ndim == 3:
+                for coord in coords:
+                    file.write(self.pattern.firstline)
+                    file.write(self.fmt['numatoms'] %natoms)
+                    for idx, [residue, atom, atom_num] in enumerate(it.izip(residues, atoms, atoms_nums)):
+                        output_line = self.fmt['xyz'] % \
+                            (residue, atom, atom_num, coord[0,idx], coord[1,idx], coord[2,idx])
+                        file.write(output_line)
+                    for edge in box:
+                        file.write('%10.5f'% edge)
+                    file.write('\n')
+            elif ndim == 6:
+                for coord in coords:
+                    file.write(self.pattern.firstline)
+                    file.write(self.fmt['numatoms'] %natoms)
+                    for idx, [residue, atom, atom_num] in enumerate(it.izip(residues, atoms, atoms_nums)):
+                        output_line = self.fmt['xyz_v'] % \
+                            (residue, atom, atom_num, coord[0,idx], coord[1,idx], coord[2,idx], coord[3,idx], coord[4,idx], coord[5,idx])
+                        file.write(output_line)
+                    for edge in box:
+                        file.write('%10.5f'% edge)
+                    file.write('\n')

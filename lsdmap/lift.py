@@ -274,15 +274,16 @@ class LSDMapLift(object):
         return idxs_thread
 
 
-    def save(self, LSDMap, output_file, ev_output_file):
+    def save(self, args, LSDMap):
         """
         save configurations in output_file and eigenvectors in ev_output_file
         """
-        struct_file_writer = writer.open(LSDMap.struct_filename)
-        struct_file_writer.write(self.coords, output_file)
+        format_struct_file = os.path.splitext(LSDMap.struct_filename)[1]
+        struct_file_writer = writer.open(format_struct_file, pattern=LSDMap.struct_filename)
+        struct_file_writer.write(self.coords, args.output_file)
 
-        evfile_writer = writer.open(format='.ev')
-        evfile_writer.write(self.evs, ev_output_file)
+        evfile_writer = writer.open('.ev')
+        evfile_writer.write(self.evs, args.ev_output_file)
 
 
     def run(self):
@@ -331,6 +332,6 @@ class LSDMapLift(object):
         self.evs = self.nystrom(self.coords, LSDMap, 10)
 
         if rank == 0:
-            self.save(LSDMap, args.output_file, args.ev_output_file)
+            self.save(args, LSDMap)
 
         logging.info("LSDMap lifting done")

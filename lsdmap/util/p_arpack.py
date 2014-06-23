@@ -2,7 +2,7 @@ import os, sys
 import numpy as np
 
 from scipy.sparse.linalg.eigen.arpack import _arpack
-from scipy.sparse.linalg.eigen.arpack.arpack import _ArpackParams, _type_conv, eigsh, ArpackError
+from scipy.sparse.linalg.eigen.arpack.arpack import _ArpackParams, _type_conv, eigsh, ArpackError, _SAUPD_ERRORS
 
 from mpi4py import MPI
 
@@ -33,7 +33,7 @@ class _ParallelSymmetricArpackParams(_ArpackParams):
         self._arpack_extract = _arpack.__dict__[ltr + 'seupd']
 
         self.ipntr = np.zeros(11, "int")
-
+        self.iterate_infodict = _SAUPD_ERRORS[ltr]
 
     def iterate(self):
 

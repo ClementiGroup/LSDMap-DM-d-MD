@@ -9,7 +9,7 @@ class GroFormat(object):
     """
     def open(self, filename, kwargs):
         import gro
-        return gro.Reader(filename)
+        return gro.Reader(filename, **kwargs)
 
 class XvgFormat(object):
     """
@@ -25,7 +25,16 @@ class SlFormat(object):
     """
     def open(self, filename, kwargs):
         import sl
-        return sl.Reader(filename)
+        return sl.Reader(filename, **kwargs)
+
+class ISlFormat(object):
+    """
+    class used to read files containing one single line (integers) (.nc))
+    """
+    def open(self, filename, kwargs):
+        import sl
+        kwargs['type'] = 'int'
+        return sl.Reader(filename, **kwargs)
 
 class EvFormat(object):
     """
@@ -33,12 +42,13 @@ class EvFormat(object):
     """
     def open(self, filename, kwargs):
         import ev
-        return ev.Reader(filename)
+        return ev.Reader(filename, **kwargs)
 
 known_formats={'.gro': GroFormat(),
                '.xvg': XvgFormat(),
                '.eps': SlFormat(),
                '.w': SlFormat(),
+               '.nc': ISlFormat(), # format used in DM-d-MD
                '.ev': EvFormat() 
 }
 
@@ -52,7 +62,8 @@ class ReaderFormatError(ReaderError):
         global known_formats
         return 'Unknown molecule file format "%s"\n Available formats are %s.\n' % (self.format, self.known_formats.keys())
 
-def open(filename, **kargs):
+
+def open(filename, **kwargs):
 
     if isinstance(filename, (list, tuple)):
         nfiles = len(filename)
@@ -60,6 +71,8 @@ def open(filename, **kargs):
             filename = filename[0]
     elif isinstance(filename, basestring):
         nfiles = 1
+    else:
+        raise ReaderError('filename(s) provided is neither a string nor a list of strings')
 
     if nfiles > 1:
         formats = [os.path.splitext(name)[1] for name in filename]
@@ -72,4 +85,4 @@ def open(filename, **kargs):
     if format not in known_formats:
         raise ReaderFormatError(format, known_formats)
 
-    return known_formats[format].open(filename, kargs)
+    return known_formats[format].open(filename, kwargs)
