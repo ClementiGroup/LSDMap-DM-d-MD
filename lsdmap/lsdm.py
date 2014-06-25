@@ -17,17 +17,19 @@ from mpi4py import MPI
 
 class LSDMap(object):
 
-    def initialize(self, config, args):
+    def initialize(self, comm, config, args):
 
         self.config = config
         self.args = args
 
         struct_file = reader.open(args.struct_file)
         self.struct_filename = struct_file.filename
-        self.coords = struct_file.readlines()
-        logging.info('input coordinates loaded')
+        self.npoints = struct_file.nlines
 
-        self.npoints = self.coords.shape[0]
+        self.idxs_thread = self.get_idxs_thread(comm)
+        coords_thread = struct_file.readlines(self.idxs_thread)
+        self.coords = np.vstack(comm.allgather(coords_thread))
+        logging.info('input coordinates loaded')
 
         self.initialize_local_scale()
         self.initialize_weights()
@@ -210,27 +212,23 @@ class LSDMap(object):
         save LSDMap object in .lsdmap file and eigenvalues/eigenvectors in .eg/.ev files
         """
 
-        lsdmap_filename = args.output_file
-
         if isinstance(self.struct_filename, list):
             struct_filename = self.struct_filename[0]
         else:
             struct_filename = self.struct_filename
 
-        if lsdmap_filename is None:
+        if args.output_file is None:
             path, ext = os.path.splitext(struct_filename)
             lsdmap_filename = path + '.lsdmap'
-            np.savetxt(path + '.eg', np.fliplr(self.eigs[np.newaxis]), fmt='%9.6f')
-            np.savetxt(path + '.ev', np.fliplr(self.evs), fmt='%15.7e')
         else:
             path, ext = os.path.splitext(lsdmap_filename)
-            np.savetxt(path + '.eg', np.fliplr(self.eigs[np.newaxis]), fmt='%9.6f')
-            np.savetxt(path + '.ev', np.fliplr(self.evs), fmt='%15.7e')
             if ext != '.lsdmap':
                 lsdmap_filename = lsdmap_filename + '.lsdmap'
+            with open(lsdmap_filename, "w") as file:
+                pickle.dump(self, file)
 
-        with open(lsdmap_filename, "w") as file:
-            pickle.dump(self, file)
+        np.savetxt(path + '.eg', np.fliplr(self.eigs[np.newaxis]), fmt='%9.6f')
+        np.savetxt(path + '.ev', np.fliplr(self.evs), fmt='%15.7e')
 
 
     def save_nneighbors(self, comm, args, DistanceMatrix_thread, epsilon_thread):
@@ -296,20 +294,18 @@ class LSDMap(object):
                             datefmt="%H:%M:%S",
                             level=logging.DEBUG)
 
-        # consider calling initialize function right after setting parsers
+
         logging.info('intializing LSDMap...')
-        self.initialize(config, args)
+        self.initialize(comm, config, args)
         logging.info('LSDMap initialized')
 
         if size > self.npoints:
             logging.error("number of threads should be less than the number of frames")
             raise ValueError
 
-        idxs_thread = self.get_idxs_thread(comm)
-        npoints_thread = len(idxs_thread)
-
-        coords_thread = np.array([self.coords[idx] for idx in idxs_thread])
-        weights_thread = np.array([self.weights[idx] for idx in idxs_thread])
+        npoints_thread = len(self.idxs_thread)
+        coords_thread = np.array([self.coords[idx] for idx in self.idxs_thread])
+        weights_thread = np.array([self.weights[idx] for idx in self.idxs_thread])
 
         # compute the distance matrix
         DistanceMatrix = mt.DistanceMatrix(coords_thread, self.coords, metric=self.metric, metric_prms=self.metric_prms)
@@ -333,7 +329,7 @@ class LSDMap(object):
                 mean_value_epsilon = np.mean(self.epsilon) # compute the mean value of the local scales
                 self.epsilon = mean_value_epsilon * np.ones(self.npoints)  # and set it as the new constant local scale
 
-        epsilon_thread = np.array([self.epsilon[idx] for idx in idxs_thread])
+        epsilon_thread = np.array([self.epsilon[idx] for idx in self.idxs_thread])
 
         # compute kernel
         kernel = self.compute_kernel(comm, npoints_thread, distance_matrix_thread, weights_thread, epsilon_thread)

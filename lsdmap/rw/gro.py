@@ -24,6 +24,23 @@ class Reader(object):
         return firstline
 
     @property
+    def natoms(self):
+        f = open(self.filename, 'r')
+        f.next()
+        natoms = int(f.next())
+        f.close()
+        return natoms
+
+    @property
+    def nlines(self):
+        f = open(self.filename, 'r')
+        for idx, line in enumerate(f):
+            pass
+        nlines = (idx+1)/(self.natoms+3)
+        f.close()
+        return nlines
+
+    @property
     def residues(self):
         return self._read_column(0, 8)
 
@@ -34,7 +51,6 @@ class Reader(object):
     @property
     def atoms_nums(self):
         return self._read_column(15, 20)
-
 
     @property
     def box(self):
@@ -115,14 +131,55 @@ class Reader(object):
 
         return config
 
-    def readlines(self):
-        configs = []
-        config = self.next()
-        while config is not None:
-            configs.append(config)
-            config = self.next()
-        return np.array(configs)
 
+    def _skip(self):
+        try:
+            self.file.next()
+        except StopIteration:
+            return None
+
+        try:
+            natoms = int(self.file.next())
+        except StopIteration:
+            raise GroError("File ended unexpectedly when reading number of atoms.")
+
+        for atom in it.izip(xrange(natoms), self.file):
+            pass
+
+        try:
+            self.file.next()
+        except StopIteration:
+            raise GroError("File ended unexpectedly when reading box line.")
+        return None
+
+
+    def readlines(self, *args):
+        if len(args) == 0:
+            configs = []
+            config = self.next()
+            while config is not None:
+                configs.append(config)
+                config = self.next()
+        elif len(args) == 1:
+            lines = args[0]
+            if isinstance(lines, int):
+                lines = [lines]
+            else:
+                lines = list(set(lines))
+                lines.sort()
+            lines = np.array(lines)
+            lines = np.hstack((-1, lines))
+            sklines = np.diff(lines) - 1
+            configs = []
+            for skline in sklines:
+                for idx in xrange(skline):
+                    self._skip()
+                config = self.next()
+                configs.append(config)
+        else:
+            raise GroError("invalid number of arguments to readlines")
+
+        return np.array(configs)
 
     def close(self):
         self.file.close()
