@@ -19,17 +19,29 @@ class LSDMap(object):
 
     def initialize(self, comm, config, args):
 
+        rank = comm.Get_rank()
+
         self.config = config
         self.args = args
 
         struct_file = reader.open(args.struct_file)
         self.struct_filename = struct_file.filename
-        self.npoints = struct_file.nlines
 
-        self.idxs_thread = self.get_idxs_thread(comm)
-        coords_thread = struct_file.readlines(self.idxs_thread)
-        self.coords = np.vstack(comm.allgather(coords_thread))
-        logging.info('input coordinates loaded')
+        if hasattr(struct_file, '_skip'): # read in parallel
+
+            self.npoints = struct_file.nlines
+            self.idxs_thread = self.get_idxs_thread(comm)
+            coords_thread = struct_file.readlines(self.idxs_thread)
+            self.coords = np.vstack(comm.allgather(coords_thread))
+
+        else: # read in serial
+            if rank == 0:
+                self.coords = struct_file.readlines()
+            else:
+                self.coords = None
+            self.coords = comm.bcast(self.coords, root=0)
+            self.npoints = self.coords.shape[0]
+            self.idxs_thread = self.get_idxs_thread(comm)
 
         self.initialize_local_scale()
         self.initialize_weights()
