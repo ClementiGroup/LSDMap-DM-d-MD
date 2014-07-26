@@ -14,8 +14,7 @@ or using MPI:
 A typical example of configuration file is ./examples/lsdmap/config.ini
 The structure file should contain all the configurations needed to compute
 LSDMap. After execution of the script, a .ev and a .eg file should have
-been generated containing the eigenvectors and eigenvalues, respectively,
-as well as a .lsdmap (pickle) file containing the lsdmap object. 
+been generated containing the eigenvectors and eigenvalues, respectively. 
 
 
 Prerequisites
