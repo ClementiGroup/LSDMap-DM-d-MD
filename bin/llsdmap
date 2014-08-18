@@ -1,0 +1,5 @@
+#!/usr/bin/env python
+
+import lsdmap.lift as lift
+
+lift.LSDMapLift().run()
