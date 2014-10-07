@@ -29,6 +29,8 @@ packages installed:
 
 * mpi4py; version 1.0 or larger
 
+* cython; version 0.21 or later
+
 Version 2.6.x or 2.7.x of python should be used. 
 
 
@@ -39,7 +41,7 @@ The Python Distutils are used to build and install LSDMap, so it is
 fairly simple to get things ready to go. Following are very simple
 instructions on how to proceed:
 
-1. First, make sure that you have NumPy, SciPy and mpi4py 
+1. First, make sure that you have NumPy, SciPy, mpi4py and cython
    installed. If not, get them from http://numpy.scipy.org/,
    http://mpi4py.scipy.org/. Compile/install them.
 
@@ -75,54 +77,6 @@ LSDMap can be computed using MPI using a command similar to:
 For more information on lsdmap command, simply type:
 
     lsdmap -h
-
-
-Other
-=====
-
-Restriction
------------
-
-Restriction from physical space to LSDMap variables can be performed
-by calling "rlsdmap" script after LSDMap has been computed. Typical
-usage of rlsdmap is:
-
-    rlsdmap -s <lsdmap_file> -c <structure_file> <other_options>
-
-or using MPI:
-
-    mpiexec -n <number_of_processors> rlsdmap -s <lsdmap_file> -c <structure_file> <other_options>
-
-where lsdmap_file is the .lsdmap file generated using lsdmap script.
-
-
-For more information on rlsdmap command, simply type:
-
-    rlsdmap -h
-
-
-Lifting
--------
-
-Lifting from diffusion map to physical variables can be computed by
-calling "llsdmap" script after LSDMap has been computed. Typical
-usage of llsdmap is:
-
-    llsdmap -s <lsdmap_file> -f <eigenvectors_file> <other_options>
-
-or using MPI:
-
-    mpiexec -n <number_of_processors> rlsdmap -s <lsdmap_file> -c
-<structure_file> <other_options>
-
-where lsdmap_file is the .lsdmap file generated using lsdmap script
-and eigenvectors_file is the file containing all the eigenvectors in .ev
-format.
-
-For more information on llsdmap command, simply type:
-
-    llsdmap -h
-
 
 
 ================
