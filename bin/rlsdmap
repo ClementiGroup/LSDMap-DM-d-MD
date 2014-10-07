@@ -1,5 +1,0 @@
-#!/usr/bin/env python
-
-import lsdmap.rest as rest
-
-rest.LSDMapRest().run()
