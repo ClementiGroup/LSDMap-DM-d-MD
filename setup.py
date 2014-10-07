@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import sys
+import re
 import textwrap
 
 from distutils.core import setup
@@ -45,7 +46,18 @@ def check_import(pkgname, pkgver):
                 "You need %(pkgname)s %(pkgver)s or greater to run lsdmap!"
                 % {'pkgname': pkgname, 'pkgver': pkgver} )
     else:
-        if mod.__version__ < pkgver:
+        if len(mod.__version__)>6:
+                mod_ver = mod.__version__[:6]
+        else:
+                mod_ver = mod.__version__
+
+        def mycmp(version1, version2):
+            def normalize(v):
+                return [int(x) for x in re.sub(r'(\.0+)*$','', v).split(".")]
+            return cmp(normalize(version1), normalize(version2))
+
+        # code for mycmp() taken from http://stackoverflow.com/questions/1714027/version-number-comparison
+        if mycmp(mod_ver,pkgver) < 0:
             exit_with_error(
                 "You need %(pkgname)s %(pkgver)s or greater to run lsdmap!"
                 % {'pkgname': pkgname, 'pkgver': pkgver} )
