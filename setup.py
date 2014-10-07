@@ -109,7 +109,6 @@ ext_modules = [Extension(
     )]
 
 setup(name='lsdmap',
-      version='2.2.0',
       packages=['lsdmap', 'lsdmap.mpi', 'lsdmap.rw', 'lsdmap.util', 'lsdmap.rbf', 'dmdmd', 'dmdmd.tools', 'dmaps', 'dmaps.kernel', 'dmaps.tools'],
       scripts = ['bin/lsdmap','bin/rlsdmap','bin/llsdmap','bin/dmdmd', 'bin/dmaps', 'bin/rbffit','bin/reweighting','bin/selection','bin/p_mdrun'],
       ext_modules = cythonize(ext_modules),
