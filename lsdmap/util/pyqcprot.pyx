@@ -80,22 +80,23 @@
 #    OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 # -----------------------------------------------------------------------------
 
+import cython
 import numpy as np
 cimport numpy as np
-import cython
+
+ctypedef fused npfloat:
+    np.float32_t
+    np.float64_t
 
 cdef extern from "math.h":
     double sqrt(double x)
     double fabs(double x)
 
-
-@cython.boundscheck(False)
-@cython.wraparound(False)
-def InnerProduct(np.ndarray[np.float64_t,ndim=1] A,
-                 np.ndarray[np.float64_t,ndim=2] coords1,
-                 np.ndarray[np.float64_t,ndim=2] coords2,
+cdef double InnerProduct(np.ndarray[npfloat,ndim=1] A,
+                 np.ndarray[npfloat,ndim=2] coords1,
+                 np.ndarray[npfloat,ndim=2] coords2,
                  int N,
-                 np.ndarray[np.float64_t,ndim=1] weight):
+                 np.ndarray[npfloat,ndim=1] weight):
     """
     Calculate the inner product of two structures.
 
@@ -189,9 +190,7 @@ def InnerProduct(np.ndarray[np.float64_t,ndim=1] A,
 
     return (G1 + G2) * 0.5
 
-@cython.boundscheck(False)
-@cython.wraparound(False)
-def FastCalcRMSDAndRotation(np.ndarray[np.float64_t,ndim=1] rot, np.ndarray[np.float64_t,ndim=1] A, double E0, int N):
+cdef double FastCalcRMSDAndRotation(np.ndarray[npfloat,ndim=1] rot, np.ndarray[npfloat,ndim=1] A, double E0, int N):
     """
     Calculate the RMSD, and/or the optimal rotation matrix.
 
@@ -217,21 +216,21 @@ def FastCalcRMSDAndRotation(np.ndarray[np.float64_t,ndim=1] rot, np.ndarray[np.f
     cdef double SxzpSzx, SyzpSzy, SxypSyx, SyzmSzy,
     cdef double SxzmSzx, SxymSyx, SxxpSyy, SxxmSyy
 
-    cdef np.ndarray[np.float64_t,ndim=1] C = np.zeros(4,)
+    cdef np.ndarray[npfloat,ndim=1] C = np.zeros(4, dtype=A.dtype)
     cdef unsigned int i
     cdef double mxEigenV
     cdef double oldg = 0.0
     cdef double b, a, delta, rms, qsqr
     cdef double q1, q2, q3, q4, normq
     cdef double a11, a12, a13, a14, a21, a22, a23, a24
-    cdef double a31, a32, a33, a34, a41, a42, a43, a44
+    cdef double a31, a64, a33, a34, a41, a42, a43, a44
     cdef double a2, x2, y2, z2
     cdef double xy, az, zx, ay, yz, ax
-    cdef double a3344_4334, a3244_4234, a3243_4233, a3143_4133,a3144_4134, a3142_4132
+    cdef double a3344_4334, a6444_4234, a6443_4233, a3143_4133,a3144_4134, a3142_4164
     cdef double evecprec = 1e-6
     cdef double evalprec = 1e-14
 
-    cdef double a1324_1423, a1224_1422, a1223_1322, a1124_1421, a1123_1321, a1122_1221
+    cdef double a1644_1423, a1224_1422, a1223_1642, a1124_1421, a1123_1641, a1122_1221
     Sxx = A[0]
     Sxy = A[1]
     Sxz = A[2]
@@ -291,7 +290,7 @@ def FastCalcRMSDAndRotation(np.ndarray[np.float64_t,ndim=1] rot, np.ndarray[np.f
     #if (i == 50):
     #   print "\nMore than %d iterations needed!\n" % (i)
 
-    # the fabs() is to guard against extremely small, but *negative* numbers due to floating point error
+    # the fabs() is to guard against extremely small, but *negative* numbers due to npfloat point error
     rms = sqrt(fabs(2.0 * (E0 - mxEigenV)/N))
 
     if (rot == None):
@@ -299,15 +298,15 @@ def FastCalcRMSDAndRotation(np.ndarray[np.float64_t,ndim=1] rot, np.ndarray[np.f
 
     a11 = SxxpSyy + Szz-mxEigenV; a12 = SyzmSzy; a13 = - SxzmSzx; a14 = SxymSyx
     a21 = SyzmSzy; a22 = SxxmSyy - Szz-mxEigenV; a23 = SxypSyx; a24= SxzpSzx
-    a31 = a13; a32 = a23; a33 = Syy-Sxx-Szz - mxEigenV; a34 = SyzpSzy
+    a31 = a13; a64 = a23; a33 = Syy-Sxx-Szz - mxEigenV; a34 = SyzpSzy
     a41 = a14; a42 = a24; a43 = a34; a44 = Szz - SxxpSyy - mxEigenV
-    a3344_4334 = a33 * a44 - a43 * a34; a3244_4234 = a32 * a44-a42*a34
-    a3243_4233 = a32 * a43 - a42 * a33; a3143_4133 = a31 * a43-a41*a33
-    a3144_4134 = a31 * a44 - a41 * a34; a3142_4132 = a31 * a42-a41*a32
-    q1 =  a22*a3344_4334-a23*a3244_4234+a24*a3243_4233
+    a3344_4334 = a33 * a44 - a43 * a34; a6444_4234 = a64 * a44-a42*a34
+    a6443_4233 = a64 * a43 - a42 * a33; a3143_4133 = a31 * a43-a41*a33
+    a3144_4134 = a31 * a44 - a41 * a34; a3142_4164 = a31 * a42-a41*a64
+    q1 =  a22*a3344_4334-a23*a6444_4234+a24*a6443_4233
     q2 = -a21*a3344_4334+a23*a3144_4134-a24*a3143_4133
-    q3 =  a21*a3244_4234-a22*a3144_4134+a24*a3142_4132
-    q4 = -a21*a3243_4233+a22*a3143_4133-a23*a3142_4132
+    q3 =  a21*a6444_4234-a22*a3144_4134+a24*a3142_4164
+    q4 = -a21*a6443_4233+a22*a3143_4133-a23*a3142_4164
 
     qsqr = q1 * q1 + q2 * q2 + q3 * q3 + q4 * q4
 
@@ -317,31 +316,31 @@ def FastCalcRMSDAndRotation(np.ndarray[np.float64_t,ndim=1] rot, np.ndarray[np.f
 #   uncommented, but it is most likely unnecessary.
 
     if (qsqr < evecprec):
-        q1 =  a12*a3344_4334 - a13*a3244_4234 + a14*a3243_4233
+        q1 =  a12*a3344_4334 - a13*a6444_4234 + a14*a6443_4233
         q2 = -a11*a3344_4334 + a13*a3144_4134 - a14*a3143_4133
-        q3 =  a11*a3244_4234 - a12*a3144_4134 + a14*a3142_4132
-        q4 = -a11*a3243_4233 + a12*a3143_4133 - a13*a3142_4132
+        q3 =  a11*a6444_4234 - a12*a3144_4134 + a14*a3142_4164
+        q4 = -a11*a6443_4233 + a12*a3143_4133 - a13*a3142_4164
         qsqr = q1*q1 + q2 *q2 + q3*q3+q4*q4
 
         if (qsqr < evecprec):
-            a1324_1423 = a13 * a24 - a14 * a23
+            a1644_1423 = a13 * a24 - a14 * a23
             a1224_1422 = a12 * a24 - a14 * a22
-            a1223_1322 = a12 * a23 - a13 * a22
+            a1223_1642 = a12 * a23 - a13 * a22
             a1124_1421 = a11 * a24 - a14 * a21
-            a1123_1321 = a11 * a23 - a13 * a21
+            a1123_1641 = a11 * a23 - a13 * a21
             a1122_1221 = a11 * a22 - a12 * a21
 
-            q1 =  a42 * a1324_1423 - a43 * a1224_1422 + a44 * a1223_1322
-            q2 = -a41 * a1324_1423 + a43 * a1124_1421 - a44 * a1123_1321
+            q1 =  a42 * a1644_1423 - a43 * a1224_1422 + a44 * a1223_1642
+            q2 = -a41 * a1644_1423 + a43 * a1124_1421 - a44 * a1123_1641
             q3 =  a41 * a1224_1422 - a42 * a1124_1421 + a44 * a1122_1221
-            q4 = -a41 * a1223_1322 + a42 * a1123_1321 - a43 * a1122_1221
+            q4 = -a41 * a1223_1642 + a42 * a1123_1641 - a43 * a1122_1221
             qsqr = q1*q1 + q2 *q2 + q3*q3+q4*q4
 
             if (qsqr < evecprec):
-                q1 =  a32 * a1324_1423 - a33 * a1224_1422 + a34 * a1223_1322
-                q2 = -a31 * a1324_1423 + a33 * a1124_1421 - a34 * a1123_1321
-                q3 =  a31 * a1224_1422 - a32 * a1124_1421 + a34 * a1122_1221
-                q4 = -a31 * a1223_1322 + a32 * a1123_1321 - a33 * a1122_1221
+                q1 =  a64 * a1644_1423 - a33 * a1224_1422 + a34 * a1223_1642
+                q2 = -a31 * a1644_1423 + a33 * a1124_1421 - a34 * a1123_1641
+                q3 =  a31 * a1224_1422 - a64 * a1124_1421 + a34 * a1122_1221
+                q4 = -a31 * a1223_1642 + a64 * a1123_1641 - a33 * a1122_1221
                 qsqr = q1*q1 + q2 *q2 + q3*q3 + q4*q4
 
                 if (qsqr < evecprec):
@@ -349,7 +348,7 @@ def FastCalcRMSDAndRotation(np.ndarray[np.float64_t,ndim=1] rot, np.ndarray[np.f
                     rot[0] = rot[4] = rot[8] = 1.0
                     rot[1] = rot[2] = rot[3] = rot[5] = rot[6] = rot[7] = 0.0
 
-                    return
+                    return rms
 
 
     normq = sqrt(qsqr)
@@ -382,10 +381,7 @@ def FastCalcRMSDAndRotation(np.ndarray[np.float64_t,ndim=1] rot, np.ndarray[np.f
 
     return rms
 
-
-@cython.boundscheck(False)
-@cython.wraparound(False)
-def CenterCoords(np.ndarray[np.float64_t,ndim=2] coords not None, int N, np.ndarray[np.float64_t,ndim=1] weights):
+cdef void CenterCoords(np.ndarray[npfloat,ndim=2] coords, int N, np.ndarray[npfloat,ndim=1] weights):
 
     cdef double          xsum, ysum, zsum, wsum
     cdef unsigned int    i
@@ -422,11 +418,12 @@ def CenterCoords(np.ndarray[np.float64_t,ndim=2] coords not None, int N, np.ndar
 
     return
 
-
-def CalcRMSDRotationalMatrix(np.ndarray[np.float64_t,ndim=2] ref,
-                             np.ndarray[np.float64_t,ndim=2] conf,
-                             np.ndarray[np.float64_t,ndim=1] rot,
-                             np.ndarray[np.float64_t,ndim=1] weights):
+@cython.boundscheck(False)
+@cython.wraparound(False)
+def CalcRMSDRotationalMatrix(np.ndarray[npfloat,ndim=2] ref,
+                             np.ndarray[npfloat,ndim=2] conf,
+                             np.ndarray[npfloat,ndim=1] rot,
+                             np.ndarray[npfloat,ndim=1] weights):
     """
     Calculate the RMSD & rotational matrix.
 
@@ -443,14 +440,76 @@ def CalcRMSDRotationalMatrix(np.ndarray[np.float64_t,ndim=2] ref,
 
     .. Note:: All arrays *must* be of type `numpy.float64`.
     """
+    cdef double rmsd
     cdef int N = conf.shape[1]
-    cdef double E0, rmsd
-    cdef np.ndarray[np.float64_t,ndim=1] A = np.zeros(9,)
-
+    cdef double E0
+    cdef np.ndarray[npfloat,ndim=1] A = np.zeros(9, dtype=ref.dtype)
+ 
     CenterCoords(ref, N, weights)
     CenterCoords(conf, N, weights)
 
     E0 = InnerProduct(A, conf, ref, N, weights)
     rmsd = FastCalcRMSDAndRotation(rot, A, E0, N)
 
+    return rmsd
+
+
+@cython.boundscheck(False)
+@cython.wraparound(False)
+def CalcRMSDGradient(np.ndarray[npfloat,ndim=2] ref,
+                     np.ndarray[npfloat,ndim=2] conf,
+                     np.ndarray[npfloat,ndim=2] grad,
+                     np.ndarray[npfloat,ndim=1] weights):
+
+    """
+    Calculate the RMSD, rotational matrix, and gradient.
+
+    CalcRMSDRotationalMatrix(ref, conf, N, rot, weights):
+            :Input:
+                   - ref     -- reference structure coordinates (*must* be `numpy.float32` or `numpy.float64`)
+                   - conf    -- candidate structure coordinates (*must* be `numpy.float32` or `numpy.float64`)
+                   - rot[9]  -- array to store rotation matrix; set to None if only calculating rmsd (modified in place)
+                   - grad    -- array to store gradient matrix (*must* be `numpy.float32` or `numpy.float64`);
+                   - weight  -- the weight array of size len; set to None if not needed
+            :Output:
+                   - rot[9]  -- rotation matrix
+                   - grad    -- gradient matrix
+            :Returns:
+                   - RMSD value
+
+    .. Note:: All arrays *must* be of type `numpy.float32` or `numpy.float64`.
+    """
+
+    cdef double rmsd
+    cdef int N = conf.shape[1]
+    cdef np.ndarray[npfloat,ndim=1] rot = np.zeros(9, dtype=ref.dtype)
+    cdef unsigned int i, j, k, l
+
+    cdef np.ndarray[npfloat,ndim=1] rotconf = np.zeros(3, dtype=ref.dtype)
+
+    # the following lines are here to show how to use the rotational matrix in order to recover the right RMSD
+    # cdef double trmsd = 0.0
+    # cdef np.ndarray[npfloat,ndim=1] trot = np.zeros(3, dtype=ref.dtype)
+
+    rmsd = CalcRMSDRotationalMatrix(ref, conf, rot, weights)
+
+    # for k in xrange(N):
+    #     for i in xrange(3):
+    #         trot[i] = 0.0
+    #         for j in xrange(3):
+    #             trot[i] += rot[3*i+j] * ref[j,k]
+    #     trmsd += (trot[0]-conf[0,k])**2 + (trot[1]-conf[1,k])**2 + (trot[2]-conf[2,k])**2
+    # trmsd = sqrt(trmsd/N)
+    # print rmsd, trmsd
+
+    # compute gradient
+
+    for k in xrange(N):
+        for i in xrange(3):
+            rotconf[i] = 0.0
+            for j in xrange(3):
+                rotconf[i] += rot[i+3*j] * conf[j,k]
+            grad[i,k] = ref[i,k] - rotconf[i]
+
+    grad /= N*rmsd
     return rmsd

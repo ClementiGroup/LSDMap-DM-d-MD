@@ -1,7 +1,9 @@
-import os
+import sys
+import numpy as np
+import cython
+import copy
 import pyqcprot
 import util
-import numpy as np
 
 class Metric(object):
     """
@@ -25,7 +27,7 @@ class Metric(object):
         self.prms = kwargs
 
         if type(metric)==str:
-            self.metric_name = metric
+            self.metric_name = copy.copy(metric)
             self.function = self.get_function()
 
         elif callable(metric):
@@ -40,6 +42,9 @@ class Metric(object):
 
     def _h_dihedral(self, coord1, coord2):
         return util.dihedral(coord1, coord2)
+
+    def _h_euclidean(self, coord1, coord2):
+        return util.euclidean(coord1, coord2)
 
     def get_function(self):
 
@@ -127,15 +132,16 @@ class DistanceMatrix(object):
        if len(shape_coords1) != len(shape_coords2):
            raise TypeError('coords1 and coords2 should have the same number of dimensions!')
 
+
        if len(shape_coords1) == 3:
            if shape_coords1[1] == shape_coords2[1]:
                self.ndim = shape_coords1[1]
                self.natoms = shape_coords1[2]
                if self.ndim > 3:
                    raise TypeError('the number of rows of each coordinate should be less than 4 (number of spatial dimensions)')
-               if self.ndim == 1:
-                   self.coords1 = np.squeeze(self.coords1, axis=(1,))
-                   self.coords2 = np.squeeze(self.coords2, axis=(1,))
+               #if self.ndim == 1:
+               #    self.coords1 = np.squeeze(self.coords1, axis=(1,))
+               #    self.coords2 = np.squeeze(self.coords2, axis=(1,))
            else:
                raise TypeError('coords1 and coords2 have not the same number of spatial dimensions')
        elif len(shape_coords1) == 2:
@@ -145,12 +151,9 @@ class DistanceMatrix(object):
            raise TypeError('coords1 and coords2 should have a number of dimensions 1 < ndim < 4;                                                                                                      if only one coordinate is used, consider using coords1[np.newaxis] or coords2[np.newaxis]')
            
        self.metric = Metric(metric, ndim=self.ndim, **metric_prms).function
-
        self.ncoords1 = self.coords1.shape[0]
        self.ncoords2 = self.coords2.shape[0]
-
        self.maxsize = 5E8;
-
 
     def __getattr__(self, name):
         if name == "distance_matrix":
@@ -158,35 +161,31 @@ class DistanceMatrix(object):
                 return self._distance_matrix
             else:
                 return self.get_distance_matrix()
-
         return DistanceMatrix.__getattribute__(self, name)
 
-
     def get_distance_matrix(self):
-
         if (self.ncoords1*self.ncoords2) > self.maxsize:
             raise ValueError("Large distance matrix expected! use more threads to avoid too much memory")
 
-        matrix = np.array([[self.metric(coord1, coord2) for coord2 in self.coords2]
-            for coord1 in self.coords1])
+        matrix = np.zeros((self.ncoords1, self.ncoords2))
+        for idx, coord1 in enumerate(self.coords1):
+	    for jdx, coord2 in enumerate(self.coords2):
+                matrix[idx, jdx] = self.metric(coord1, coord2)
+
+        #matrix = np.array([[self.metric(coord1, coord2) for coord2 in self.coords2]
+        #    for coord1 in self.coords1])
 
         matrix[np.isnan(matrix)] = 0.0
         self._distance_matrix = matrix
-
         return matrix
 
-
     def neighbor_matrix(self, **kargs):
-
         neighbor_matrix, idx_neighbor_matrix = self.get_neighbor_matrix(**kargs)
         return neighbor_matrix
 
-
     def idx_neighbor_matrix(self, **kargs):
-
         neighbor_matrix, idx_neighbor_matrix = self.get_neighbor_matrix(**kargs)
         return idx_neighbor_matrix
-
 
     def get_neighbor_matrix(self, k=None):
 
@@ -204,13 +203,13 @@ class DistanceMatrix(object):
 
         if hasattr(self, '_distance_matrix'):
             for idx, distance in enumerate(self._distance_matrix):
-                idx_neighbors = np.argsort(distance)[:k]  # CAUTION: the first element is the point itself
+                idx_neighbors = np.argsort(distance)[:k]
                 idx_neighbor_matrix[idx] = idx_neighbors
                 neighbor_matrix[idx] = [distance[idx_neighbor] for idx_neighbor in idx_neighbors]
         else:
             for idx, coord1 in enumerate(self.coords1):
                 distance = np.array([self.metric(coord1, coord2) for coord2 in self.coords2])    
-                idx_neighbors = np.argsort(distance)[:k]  # CAUTION: the first element is the point itself
+                idx_neighbors = np.argsort(distance)[:k]
                 idx_neighbor_matrix[idx] = idx_neighbors
                 neighbor_matrix[idx] = [distance[idx_neighbor] for idx_neighbor in idx_neighbors]
 

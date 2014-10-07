@@ -51,9 +51,9 @@ class SelectionStep(object):
 
         # minimum and maximum 1st DC values used
         min_ev1s = np.amin(ev1s)
-        print "minimum probability at %.5f" %min_ev1s
+        print "DC1 min = %.5f" %min_ev1s
         max_ev1s = np.amax(ev1s)
-        print "maximum probability at %.5f" %max_ev1s
+        print "DC1 max = %.5f" %max_ev1s
 
         # create a histogram with the values of the first DCs
         nbins = int(np.sqrt(npoints)/2)

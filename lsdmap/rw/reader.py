@@ -44,12 +44,32 @@ class EvFormat(object):
         import ev
         return ev.Reader(filename, **kwargs)
 
+class XyzFormat(object):
+    """
+    class used to read .xyz files
+    """
+    def open(self, filename, kwargs):
+        import xyz
+        return xyz.Reader(filename, **kwargs)
+
+
+class XyFormat(object):
+    """
+    class used to read .xy files
+    """
+    def open(self, filename, kwargs):
+        import xy
+        return xy.Reader(filename, **kwargs)
+
 known_formats={'.gro': GroFormat(),
                '.xvg': XvgFormat(),
                '.eps': SlFormat(),
                '.w': SlFormat(),
                '.nc': ISlFormat(), # format used in DM-d-MD
-               '.ev': EvFormat() 
+               '.ev': EvFormat(),
+               '.xyz': XyzFormat(),
+               '.xy': XyFormat(),
+               '.sl': SlFormat()
 }
 
 class ReaderFormatError(ReaderError):

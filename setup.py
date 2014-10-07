@@ -5,11 +5,12 @@ import textwrap
 
 from distutils.core import setup
 from distutils.core import Extension
-
+from distutils.sysconfig import get_python_lib
 
 min_numpy_version = '1.4.1'
 min_scipy_version = '0.10.0'
 min_mpi4py_version = '1.0'
+min_cython_version = '0.21'
 
 # Some functions for showing errors and warnings.
 def _print_admonition(kind, head, body):
@@ -56,6 +57,7 @@ def check_import(pkgname, pkgver):
 check_import('numpy', min_numpy_version)
 check_import('scipy', min_scipy_version)
 check_import('mpi4py', min_mpi4py_version)
+check_import('cython', min_cython_version)
 
 import numpy as np
 try:
@@ -66,6 +68,7 @@ except AttributeError:
 # Handle cython modules
 try:
     from Cython.Distutils import build_ext
+    from Cython.Build import cythonize
     use_cython = True
     cmdclass = {'build_ext': build_ext}
 except ImportError:
@@ -84,15 +87,23 @@ ext_modules = [Extension(
     sources=["lsdmap/util/util.{}".format('pyx' if use_cython else 'c')],
     include_dirs=[numpy_include],
     extra_compile_args=["-O3","-ffast-math"],
+    ), Extension(
+    name='dmaps/kernel/libdms',
+    sources=["dmaps/kernel/wrapper_md.{}".format('pyx' if use_cython else 'c')],
+    libraries=['python2.' + str(sys.version_info[1]), 'util'],
+    library_dirs=[sys.prefix + '/' + 'lib'],
+    include_dirs=[numpy_include],
+    extra_compile_args=["-O3","-ffast-math"],
     )]
 
 setup(name='lsdmap',
-      version='2.1.0',
-      packages=['lsdmap', 'lsdmap.util', 'lsdmap.rw', 'dmdmd', 'dmdmd.util'],
-      scripts = ['bin/lsdmap','bin/rlsdmap','bin/llsdmap','bin/dmdmd','bin/reweighting','bin/selection','bin/p_mdrun'],
-      ext_modules = ext_modules,
+      version='2.2.0',
+      packages=['lsdmap', 'lsdmap.mpi', 'lsdmap.rw', 'lsdmap.util', 'lsdmap.rbf', 'dmdmd', 'dmdmd.tools', 'dmaps', 'dmaps.kernel', 'dmaps.tools'],
+      scripts = ['bin/lsdmap','bin/rlsdmap','bin/llsdmap','bin/dmdmd', 'bin/dmaps', 'bin/rbffit','bin/reweighting','bin/selection','bin/p_mdrun'],
+      ext_modules = cythonize(ext_modules),
       cmdclass = cmdclass,
       license='LICENSE.txt',
       description='LSDMap package',
-      long_description=open('README.txt').read(),
+      long_description=open('README.md').read(),
+      #data_files=[(get_python_lib()+'/dmaps/kernel', ['dmaps/kernel/run.sh'])]
      )

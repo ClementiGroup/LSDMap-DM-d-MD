@@ -205,7 +205,7 @@ class Writer(object):
         except KeyError:
             raise NotImplementedError('a file pattern is needed to write .gro files, please use writer.open(format, pattern=...)')
 
-    def write(self, coords, filename):
+    def write(self, coords, filename, mode='w'):
 
         coords = np.array(coords)
 
@@ -229,7 +229,7 @@ class Writer(object):
         if natoms != len(atoms):
             raise GroError('pattern used to create writer object has not the same number of atoms that the coordinates provided')
         
-        with open(filename , 'w') as file:
+        with open(filename, mode) as file:
             # Atom descriptions and coords
             if ndim == 3:
                 for coord in coords:

@@ -1,6 +1,6 @@
+import cython
 import numpy as np
 cimport numpy as np
-import cython
 
 cdef extern from "math.h":
     double sqrt(double x)
@@ -11,6 +11,7 @@ cdef extern from "math.h":
 @cython.wraparound(False)
 def cmd(np.ndarray[np.double_t, ndim=2] coord1, np.ndarray[np.double_t, ndim=2] coord2, double r0):
 
+    cdef double value 
     cdef int natoms = coord1.shape[1]
     cdef double r1, r2, c1, c2, sumc1, sumc2, sumc1c2
 
@@ -33,10 +34,31 @@ def cmd(np.ndarray[np.double_t, ndim=2] coord1, np.ndarray[np.double_t, ndim=2] 
 
     return value
 
+
+@cython.boundscheck(False)
+@cython.wraparound(False)
+def euclidean(np.ndarray[np.double_t, ndim=2] coord1, np.ndarray[np.double_t, ndim=2] coord2):
+
+    cdef double value
+    cdef int ndim = coord1.shape[0]
+    cdef int natoms = coord1.shape[1]
+    cdef double sum
+
+    cdef unsigned int i, j
+
+    sum = 0.0
+
+    for i in xrange(ndim):
+        for j in xrange(natoms):
+          sum += (coord1[i,j] - coord2[i,j])**2
+    value = sqrt(sum)
+    return value
+
 @cython.boundscheck(False)
 @cython.wraparound(False)
 def dihedral(np.ndarray[np.double_t, ndim=1] coord1, np.ndarray[np.double_t, ndim=1] coord2):
 
+    cdef double value
     cdef int ndihedral = coord1.shape[0]
     cdef double sum = 0.0
 

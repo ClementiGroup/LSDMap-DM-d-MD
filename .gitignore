@@ -1,4 +1,5 @@
 build/
-*.c
+*.pyc
 *~
+*.c
 *.log
