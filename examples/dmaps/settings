@@ -1,0 +1,48 @@
+#---- file containing settings for DMap sampling ---#
+# make sure of the existence of every file listed below! 
+
+### general parameters
+
+# number of iterations
+niters=20
+
+# number of replicas
+nreplicas=12
+
+# current iteration (to restart new dmap sampling, set iter to 0)
+iter=0
+
+# configuration file
+inifile="config.ini"
+
+### radical-pilot parameters
+
+# remote host (rice.davinci, stampede.tacc.utexas.edu...)
+remote_host="rice.davinci"
+
+# name on remote machine
+uname="username"
+
+# allocation
+allocation="TG-MCB090174"
+
+# run time in minutes
+runtime=60
+
+# number of cores needed
+cores=nreplicas
+
+# queue on remote machine
+queue="serial"
+
+### MD simulation files (GROMACS)
+
+# intial gro file
+startgro="start.gro"
+
+# mdp file
+mdpfile="grompp.mdp"
+
+# topology files
+topfile="topol.top"
+
