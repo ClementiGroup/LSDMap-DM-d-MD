@@ -373,3 +373,6 @@ class LSDMap(object):
             self.save_distance_matrix(comm, args, distance_matrix_thread)
 
         logging.info("LSDMap computation done")
+
+if __name__ == '__main__':
+    LSDMap().run()
