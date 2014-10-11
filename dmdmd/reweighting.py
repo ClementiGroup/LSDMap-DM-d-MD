@@ -40,7 +40,7 @@ class ReweightingStep(object):
                 self.weights = np.ones(self.npoints, dtype='float')
 
         assert self.ncopiess.size == self.npoints, "the number of lines of .nc file should be equal to the number\
-                                                   of configurations in the structure file. %i/%i" %(self.ncopies.size, self.npoints)
+                                                   of configurations in the structure file. %i/%i" %(self.ncopiess.size, self.npoints)
         assert self.weights.size == self.npoints, "the number of lines of .w file should be equal to the number\
                                                    of configurations in the structure file. %i/%i" %(self.weights.size, self.npoints)
 
