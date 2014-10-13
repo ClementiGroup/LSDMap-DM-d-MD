@@ -54,7 +54,7 @@ class DMapSampling(object):
 
         if config.has_option('MD', 'nsteps'):
             self.nsteps = config.getint('MD', 'nsteps')
-	    os.system("sed -i '' 's/nsteps.*/nsteps                   = %i/g' "%self.nsteps + settings.mdpfile)
+            os.system("sed -i '' 's/nsteps.*/nsteps                   = %i/g' "%self.nsteps + settings.mdpfile)
             logging.info("nsteps for MD simulations was set to %i "%self.nsteps)
             self.nsteps_guess = False
         else:
@@ -225,7 +225,8 @@ rm -f $tmpstartgro
         # before updating save results of interest
         os.system("rm -rf iter%i"%settings.iter)
         os.system("mkdir iter%i"%settings.iter)
-        os.system("cp phipsi.sh confall.gro confall.w confall.ev.embed confall.ev.embed.old iter%i"%settings.iter)
+        os.system("cp phipsi.sh confall.gro confall.w confall.ev.embed confall.ev.embed.old output.ev iter%i"%settings.iter)
+        os.system("cp output.ev " + outgro + " iter%i" %settings.iter)
         os.system("cp -r fit fe lsdmap iter%i"%settings.iter)       
  
         autocorrelation_time_dc1, autocorrelation_time_dc2 = self.get_dcs_autocorrelation_time(settings)
@@ -302,12 +303,38 @@ rm -f $tmpstartgro
         os.makedirs(autocorrdir)
 
         np.savetxt(autocorrdir + '/' + 'dcs.xyz', np.array([step, autocorrelation_dc1, autocorrelation_dc2]).T, fmt='%15.7e')
+
         return autocorrelation_time_dc1, autocorrelation_time_dc2
+
+
+    def restart_from_iter(self, num_iter, args):
+
+        logging.info("restarting from iteration %i" %num_iter)
+        # remove iter folders with iter number >= num_iter
+        os.system('for dir in iter*; do num=`cut -d "r" -f 2 <<< $dir`; if [ "$num" -ge %i ]; then rm -rf $dir; fi ; done'%num_iter)
+        os.system("cp iter%i/"%(num_iter-1) + outgro + " input.gro ")
+        os.system("rm -rf fit lsdmap autocorr tmp fe")
+        os.system("cp -r iter%i/{fit,fe,lsdmap} ."%(num_iter-1))
+
+        # update iter in settings file
+        os.system("sed -i '' 's/iter=.*/iter=%i/g' "%num_iter + args.setfile)
+
+        return
+
+    def restart(self, args):
+       
+        os.system("sed -i '' 's/iter=.*/iter=0/g' settings")
+        os.system("rm -rf iter* fit lsdmap autocorr tmp fe")
+
+        return
 
     def run(self):
 
         parser = argparse.ArgumentParser(description="Run Diffusion Map Driven Adaptive Sampling...")
-        parser.add_argument("-f", dest="setfile", required=True, help='File containing settings (input): -')
+        parser.add_argument("-f", type=str, dest="setfile", required=True, help='File containing settings (input): -')
+        parser.add_argument("--restart", action="store_true", dest="restart", default=False, help='restart from scratch')
+        parser.add_argument("--checkpoint", type=int, dest="num_iter", help='restart from a given iteration')
+
         args = parser.parse_args()
 
         logging.basicConfig(filename='dmaps.log',
@@ -318,6 +345,18 @@ rm -f $tmpstartgro
 
         settings = imp.load_source('setfile', args.setfile)
         umgr, session = pilot.startPilot(settings)
+
+        if args.restart:
+            self.restart(args)
+            if args.num_iter is not None:
+	        logging.error("checkpoint option can not be set together with restart option")
+
+        if args.num_iter == 0:
+            logging.error("checkpoint option can not be set to 0, use restart option instead")
+        elif args.num_iter > 0:
+            self.restart_from_iter(args.num_iter, args)
+        else:
+            logging.error("argument of checkpoint option should be a positive integer (iteration number to restart from)")
 
         # initialize dmap sampling
         self.initialize(settings)

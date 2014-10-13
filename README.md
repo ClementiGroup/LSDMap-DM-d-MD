@@ -118,9 +118,11 @@ Installation steps to use Diffusion Map Sampling:
 
 1. Install LSDMap package on the remote machine (see section LSDMap above)
 
-2. Install the modified (serial, simple precision) version of GROMACS needed 
+2. Install radical pilot
+
+3. Install the modified (serial, simple precision) version of GROMACS needed 
    to run diffusion map sampling on the remote machine. The package can be
-   git-cloned using the following command  
+   git-cloned using the following command:
 
 	git clone git://git.code.sf.net/p/dmaps-gromacs/code dmaps-gromacs-code
 
@@ -133,8 +135,7 @@ Installation steps to use Diffusion Map Sampling:
 	cd cmake-build
 	cmake .. -DGMX_BUILD_OWN_FFTW=ON -DCMAKE_INSTALL_PREFIX=/path/to/local/directory -DGMX_GPU=OFF -DGMX_MPI=OFF
 
-  b) bind libdms.so to GROMACS
-
+   b. bind libdms.so to GROMACS
     First, find the location of the library libdms.so that was generated when
     installing lsdmap, it should be /path/to/site-packages/dmaps/kernel/libdms.so, 
     where path/to/site-packages is the path to the python folder site-packages

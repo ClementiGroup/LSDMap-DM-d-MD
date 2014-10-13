@@ -22,8 +22,13 @@ davinci_pre_exec = ["PYTHONPATH=$PYTHONPATH:$HOME/local/lib/python2.7",
 "PYTHONPATH=$PYTHONPATH:$HOME/local/lib/python2.7/site-packages/numpy",
 "export PYTHONPATH"]
 
+biou_pre_exec = ["PYTHONPATH=$PYTHONPATH:$HOME/local/lib/python2.7",
+"PYTHONPATH=$PYTHONPATH:$HOME/local/lib/python2.7/site-packages/numpy",
+"export PYTHONPATH"]
+
+
 known_pre_exec = {"stampede.tacc.utexas.edu": stampede_pre_exec, "xsede.stampede": stampede_pre_exec,
-"davinci.rice.edu": davinci_pre_exec, "rice.davinci": davinci_pre_exec}
+"davinci.rice.edu": davinci_pre_exec, "rice.davinci": davinci_pre_exec, "rice.biou": biou_pre_exec}
 
 class DMapSamplingWorker(object):
 
@@ -135,8 +140,9 @@ class DMapSamplingWorker(object):
             cu.output_staging = ['confall.gro > tmp/confall%i.gro' %idx, 'out.gro > tmp/out%i.gro' %idx, 'confall.w > tmp/confall%i.w' %idx]
             if settings.iter > 0:
                cu.output_staging.extend(['confall.ev > tmp/confall%i.ev' %idx, 'autocorr.ev > tmp/autocorr%i.ev' %idx])
- 
+
             cu.cores = 1
+            cu.cleanup = True
 
             cud_list.append(cu)
         units = umgr.submit_units(cud_list)
@@ -249,6 +255,7 @@ class DMapSamplingWorker(object):
         cu.output_staging = ['lsdmap.ev > ' + lsdmapdir + '/' + 'lsdmap.ev', 'lsdmap.eg > ' + lsdmapdir + '/' + 'lsdmap.eg', "lsdmap.log > " + lsdmapdir + '/' + "lsdmap.log"]
         cu.mpi = True
         cu.cores = settings.cores
+        cu.cleanup = True
 
         unit = umgr.submit_units(cu)
         unit.wait()
@@ -326,6 +333,7 @@ class DMapSamplingWorker(object):
         cu.executable = 'rbffit' + ' -f ' + settings.inifile + ' -c fit.gro -v fit.ev --embed embed.gro' +  ' ' + dc_options
         cu.output_staging = ["fit.w > fit/fit.w", "fit.sig > fit/fit.sig", "fit.embed > confall.ev.embed"]
         cu.mpi = True
+        cu.cleanup = True
         cu.cores = settings.cores
 
         unit = umgr.submit_units(cu)
@@ -510,13 +518,39 @@ class DMapSamplingWorker(object):
 
         logging.info("Pick new configurations for the next iteration.")
         if is2nddc == 1:
-            idxs_new_coords = tools.draw_points_hist2D(self.hist_idxs_fe, self.nbinsfe + 2*self.nextrabinsfe, settings.nreplicas)
+            ndcs_pre_max = 500
+            ndcs_pre = max(settings.nreplicas, ndcs_pre_max) # ndcs used for the preselection
+            # preselection
+            idxs_dcs_pre = tools.draw_points_hist2D(self.hist_idxs_fe, self.nbinsfe+2*self.nextrabinsfe, ndcs_pre)
+            # selection
+            if settings.nreplicas <= ndcs_pre_max:
+                idxs_new_dcs = []
+                random_index = random.randrange(0, ndcs_pre)
+                idxs_new_dcs.append(idxs_dcs_pre.pop(random_index))
+                for count in xrange(settings.nreplicas-1):
+                    max_min_r = 0.
+                    for i, idx in enumerate(idxs_dcs_pre):
+                        min_r = 1.e100
+                        for jdx in idxs_new_dcs:
+                            r = (self.dc1s_embed[idx] - self.dc1s_embed[jdx])**2 + (self.dc2s_embed[idx] - self.dc2s_embed[jdx])**2
+                            min_r = min(r, min_r)
+                        if min_r >= max_min_r:
+                            max_min_r = min_r
+                            new_i = i
+                            new_idx = idx
+                    del idxs_dcs_pre[new_i]
+                    idxs_new_dcs.append(new_idx)
+            else:
+                idxs_new_dcs = idxs_dcs_pre
         else:
             raise NotImplementedError("is2nddc should be equal to 1!")
 
-        new_coords = self.coords_all[idxs_new_coords]
+        new_coords = self.coords_all[idxs_new_dcs]
 
         logging.info("Save new configurations in " + curdir + '/' + 'output.gro')
         # save new coordinates
         grofile_w = writer.open('.gro', pattern='confall.gro')
         grofile_w.write(new_coords, 'output.gro')
+
+        # save dcs of new points (check)
+	np.savetxt("output.ev", np.array([self.dc1s_embed[idxs_new_dcs], self.dc2s_embed[idxs_new_dcs]]).T, fmt='%15.7e')
