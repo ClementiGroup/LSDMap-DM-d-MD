@@ -343,9 +343,6 @@ rm -f $tmpstartgro
                             datefmt="%H:%M:%S",
                             level=logging.DEBUG)
 
-        settings = imp.load_source('setfile', args.setfile)
-        umgr, session = pilot.startPilot(settings)
-
         if args.restart:
             self.restart(args)
             if args.num_iter is not None:
@@ -357,6 +354,9 @@ rm -f $tmpstartgro
             self.restart_from_iter(args.num_iter, args)
         else:
             logging.error("argument of checkpoint option should be a positive integer (iteration number to restart from)")
+
+        settings = imp.load_source('setfile', args.setfile)
+	umgr, session = pilot.startPilot(settings)
 
         # initialize dmap sampling
         self.initialize(settings)
