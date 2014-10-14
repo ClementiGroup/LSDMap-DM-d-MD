@@ -9,26 +9,9 @@ import numpy as np
 import radical.pilot
 
 from dmaps.tools import tools
+from dmaps.tools.config import known_pre_exec, tmpfiles
 from lsdmap.rw import reader
 from lsdmap.rw import writer
-
-
-stampede_pre_exec = ["module load -intel intel/14.0.1.106", "module load python",
-"PYTHONPATH=$PYTHONPATH:/opt/apps/intel14/mvapich2_2_0/python/2.7.6/lib/python2.7",
-"PYTHONPATH=$PYTHONPATH:/opt/apps/intel14/mvapich2_2_0/python/2.7.6/lib/python2.7/site-packages",
-"PYTHONPATH=$PYTHONPATH:$HOME/.local/lib/python2.7/site-packages","export PYTHONPATH"]
-
-davinci_pre_exec = ["PYTHONPATH=$PYTHONPATH:$HOME/local/lib/python2.7",
-"PYTHONPATH=$PYTHONPATH:$HOME/local/lib/python2.7/site-packages/numpy",
-"export PYTHONPATH"]
-
-biou_pre_exec = ["PYTHONPATH=$PYTHONPATH:$HOME/local/lib/python2.7",
-"PYTHONPATH=$PYTHONPATH:$HOME/local/lib/python2.7/site-packages/numpy",
-"export PYTHONPATH"]
-
-
-known_pre_exec = {"stampede.tacc.utexas.edu": stampede_pre_exec, "xsede.stampede": stampede_pre_exec,
-"davinci.rice.edu": davinci_pre_exec, "rice.davinci": davinci_pre_exec, "rice.biou": biou_pre_exec}
 
 class DMapSamplingWorker(object):
 
@@ -41,7 +24,7 @@ class DMapSamplingWorker(object):
         shutil.rmtree(tmpdir, ignore_errors=True)
         os.makedirs(tmpdir)
 
-        grofile = open('input.gro', 'r')
+        grofile = open(tmpfiles['ingro'][0], 'r')
         grofile.next()
         natoms = int(grofile.next())
         for idx, line in enumerate(grofile):
@@ -59,7 +42,7 @@ class DMapSamplingWorker(object):
         for idx in xrange(nextra_coords):
             ncoords_per_thread[idx] += 1
 
-        with open('input.gro', 'r') as grofile:
+        with open(tmpfiles['ingro'][0], 'r') as grofile:
             for idx in xrange(size):
                 grofile_thread = tmpdir + '/' + 'input%s.gro' %idx
                 with open(grofile_thread, 'w') as grofile_t:
