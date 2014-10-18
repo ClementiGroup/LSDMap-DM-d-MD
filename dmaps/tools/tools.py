@@ -73,7 +73,7 @@ def do_hist2D(x, y, nbins, nextrabins=0):
     return bins1, bins2, hist_idxs
 
 
-def draw_points_hist2D(hist_idxs, nbins, npoints, border_frac=0.0):
+def pick_points_from_hist2D(hist_idxs, nbins, npoints, border_frac=0.0):
 
     drawn_points = []
 
@@ -157,6 +157,32 @@ def draw_points_hist2D(hist_idxs, nbins, npoints, border_frac=0.0):
             npicked += 1
 
     return drawn_points
+
+def pick_points_2D_optimized(x, y, npoints, idxs_preselect=None):
+
+    if idxs_preselect is None:
+        nsample = x.shape[0]
+        idxs_preselect = range(nsample)
+    else:
+        nsample = len(idxs_preselect)
+    idxs_picked_points = []
+    random_index = random.randrange(0, nsample)
+    idxs_picked_points.append(idxs_preselect.pop(random_index))
+    for count in xrange(npoints-1):
+        max_min_r = 0.
+        for i, idx in enumerate(idxs_preselect):
+            min_r = 1.e100
+            for jdx in idxs_picked_points:
+                r = (x[idx] - x[jdx])**2 + (y[idx] - y[jdx])**2
+                min_r = min(r, min_r)
+            if min_r >= max_min_r:
+                max_min_r = min_r
+                new_i = i
+                new_idx = idx
+        del idxs_preselect[new_i]
+        idxs_picked_points.append(new_idx)
+
+    return idxs_picked_points
 
 ### does not handle empty bins at the borders
 #def draw_points_hist2D_test(hist, nbins, npoints, sampling='uniform', border_frac=0.0):

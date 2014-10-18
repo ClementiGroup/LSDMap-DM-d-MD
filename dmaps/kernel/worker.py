@@ -2,12 +2,11 @@ import os
 import sys
 import time
 
-import shutil
 import logging
 import random
 import numpy as np
-import radical.pilot
 
+import radical.pilot
 from dmaps.tools import tools
 from dmaps.tools.config import known_pre_exec, tmpfiles
 from lsdmap.rw import reader
@@ -21,7 +20,7 @@ class DMapSamplingWorker(object):
 
         print "Preparing .gro files..."
 
-        shutil.rmtree(tmpdir, ignore_errors=True)
+        os.system('rm -rf ' + tmpdir)
         os.makedirs(tmpdir)
 
         grofile = open(tmpfiles['ingro'][0], 'r')
@@ -183,14 +182,14 @@ class DMapSamplingWorker(object):
                 bins1, bins2, hist_idxs = tools.do_hist2D(old_dc1s, old_dc2s, nbins)
                 # select the fitting points uniquely and uniformly along the first two DCs
                 logging.info('Select fitting points uniformly')
-                self.idxs_lsdmap = tools.draw_points_hist2D(hist_idxs, nbins, nlsdmap, border_frac=border_frac)
+                self.idxs_lsdmap = tools.pick_points_from_hist2D(hist_idxs, nbins, nlsdmap, border_frac=border_frac)
             else:
                 raise NotImplementedError("is2nddc should be equal to 1!")
 
         self.coords_lsdmap = self.coords_all[self.idxs_lsdmap]
         self.weights_lsdmap = self.weights_all[self.idxs_lsdmap]
 
-        shutil.rmtree(lsdmapdir, ignore_errors=True)
+        os.system('rm -rf ' + lsdmapdir)
         os.makedirs(lsdmapdir)
 
         logging.info('Write configurations in ' + lsdmapdir + '/' + 'lsdmap_aa.gro')
@@ -262,8 +261,16 @@ class DMapSamplingWorker(object):
             # build histogram
             bins1, bins2, hist_idxs = tools.do_hist2D(self.dc1s, self.dc2s, nbins)
             # select the fitting points uniquely and uniformly along the first two DCs
-            logging.info('Select fitting points uniformly')
-            idxs_fit = tools.draw_points_hist2D(hist_idxs, nbins, nfit, border_frac=border_frac)
+            logging.info('Select fitting points uniformly along the DCs')
+            ndcs = self.dc1s.shape[0]
+            ndcs_preselect_max = min(ndcs, 3000)
+            if nfit < ndcs_preselect_max:
+                # preselection
+                idxs_preselect_dcs = tools.pick_points_from_hist2D(hist_idxs, nbins, ndcs_preselect_max, border_frac=border_frac)
+                # selection
+                idxs_fit = tools.pick_points_2D_optimized(self.dc1s, self.dc2s, nfit, idxs_preselect=idxs_preselect_dcs)
+            else:
+                idxs_fit = tools.pick_points_from_hist2D(hist_idxs, nbins, nfit, border_frac=border_frac)
         else:
             raise NotImplementedError("is2nddc should be equal to 1!")
 
@@ -273,7 +280,7 @@ class DMapSamplingWorker(object):
         self.dc1s_fit = self.dc1s[idxs_fit]
         self.dc2s_fit = self.dc2s[idxs_fit]
 
-        shutil.rmtree(fitdir, ignore_errors=True)
+        os.system('rm -rf ' + fitdir)
         os.makedirs(fitdir)
 
         logging.info('Write configurations in ' + fitdir + '/' +'fit_aa.gro')
@@ -334,7 +341,7 @@ class DMapSamplingWorker(object):
 #        bins1, bins2, free_energy_grid = self.compute_free_energy_hist(nbins, cutoff, kT, is2nddc)
 #
 #        ninter = nbinstot**2/nfit
-#        shutil.rmtree(fedir, ignore_errors=True)
+#        os.system('rm -rf ' + fedir)
 #        os.makedirs(fedir)
 #
 #        logging.info("Save results free energy histogram")
@@ -399,7 +406,7 @@ class DMapSamplingWorker(object):
         curdir = os.getcwd()
         fedir = curdir + '/' + 'fe'
 
-        shutil.rmtree(fedir, ignore_errors=True)
+        os.system('rm -rf ' + fedir)
         os.makedirs(fedir)
 
         bins1, bins2, free_energy_grid = self.compute_free_energy_hist(nbins, cutoff, kT, is2nddc, fedir)
@@ -501,30 +508,15 @@ class DMapSamplingWorker(object):
 
         logging.info("Pick new configurations for the next iteration.")
         if is2nddc == 1:
-            ndcs_pre_max = 500
-            ndcs_pre = max(settings.nreplicas, ndcs_pre_max) # ndcs used for the preselection
-            # preselection
-            idxs_dcs_pre = tools.draw_points_hist2D(self.hist_idxs_fe, self.nbinsfe+2*self.nextrabinsfe, ndcs_pre)
-            # selection
-            if settings.nreplicas <= ndcs_pre_max:
-                idxs_new_dcs = []
-                random_index = random.randrange(0, ndcs_pre)
-                idxs_new_dcs.append(idxs_dcs_pre.pop(random_index))
-                for count in xrange(settings.nreplicas-1):
-                    max_min_r = 0.
-                    for i, idx in enumerate(idxs_dcs_pre):
-                        min_r = 1.e100
-                        for jdx in idxs_new_dcs:
-                            r = (self.dc1s_embed[idx] - self.dc1s_embed[jdx])**2 + (self.dc2s_embed[idx] - self.dc2s_embed[jdx])**2
-                            min_r = min(r, min_r)
-                        if min_r >= max_min_r:
-                            max_min_r = min_r
-                            new_i = i
-                            new_idx = idx
-                    del idxs_dcs_pre[new_i]
-                    idxs_new_dcs.append(new_idx)
+            ndcs = self.dc1s_embed.shape[0]
+            ndcs_preselect_max = min(ndcs, 1000)
+            if settings.nreplicas < ndcs_preselect_max:
+                # preselection
+                idxs_preselect_dcs = tools.pick_points_from_hist2D(self.hist_idxs_fe, self.nbinsfe+2*self.nextrabinsfe, ndcs_preselect_max)
+                # selection
+                idxs_new_dcs = tools.pick_points_2D_optimized(self.dc1s_embed, self.dc2s_embed, settings.nreplicas, idxs_preselect=idxs_preselect_dcs)
             else:
-                idxs_new_dcs = idxs_dcs_pre
+                idxs_new_dcs = tools.pick_points_from_hist2D(self.hist_idxs_fe, self.nbinsfe+2*self.nextrabinsfe, settings.nreplicas)
         else:
             raise NotImplementedError("is2nddc should be equal to 1!")
 
@@ -536,4 +528,4 @@ class DMapSamplingWorker(object):
         grofile_w.write(new_coords, 'output.gro')
 
         # save dcs of new points (check)
-	np.savetxt("output.ev", np.array([self.dc1s_embed[idxs_new_dcs], self.dc2s_embed[idxs_new_dcs]]).T, fmt='%15.7e')
+        np.savetxt("output.ev", np.array([self.dc1s_embed[idxs_new_dcs], self.dc2s_embed[idxs_new_dcs]]).T, fmt='%15.7e')
