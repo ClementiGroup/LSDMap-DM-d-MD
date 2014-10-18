@@ -6,7 +6,7 @@ import argparse
 import subprocess
 import ConfigParser
 
-from math import sqrt
+from math import sqrt, floor
 import logging
 import radical.pilot
 import numpy as np
@@ -102,14 +102,8 @@ class DMapSampling(object):
         else:
             self.nlsdmap = nlsdmap
 
-        # should 2nd DC be considered?
-        self.is2nddc =  config.getint('DMAPS', 'is2nddc')
-
         # number of bins used to build the histogram for the free energy
-        if self.is2nddc == 1:
-            self.nbinsfe = int(sqrt(self.npoints/3))
-        elif self.is2nddc == 0:
-            self.nbinsfe = int(sqrt(self.npoints/2))
+        self.nbinsfe = int(floor(self.npoints**(1./3)))
 
         # temperature in Kelvins
         temperature = config.getint('MD', 'temperature')
@@ -138,20 +132,11 @@ class DMapSampling(object):
         # number of points used for the fitting of the dc values
         self.nfitdcs = config.getint('FITTING', 'npoints')
 
-        # number of points used for the fitting of the dc values
-        self.borderfrac = config.getfloat('FITTING', 'border_frac')
-
         # number of bins used to build the histogram to select the fitting points
-        if self.is2nddc == 1:
-            self.nbinsdcs = int(sqrt(self.nlsdmap/3))
-        elif self.is2nddc == 0:
-            self.nbinsdcs = int(sqrt(self.nlsdmap/2))
+        self.nbinsdcs = int(floor(self.nlsdmap**(1./3)))
 
         # number of bins used to build the histogram to select the lsdmap points
-        if self.is2nddc == 1:
-            self.nbins_lsdmap = int(sqrt(self.npoints/3))
-        elif self.is2nddc == 0:
-            self.nbins_lsdmap = int(sqrt(self.npoints/2))
+        self.nbins_lsdmap = int(floor(self.npoints**(1./3)))
 
 
     def write_md_script(self, filename, settings):
@@ -222,7 +207,7 @@ rm -f $tmpstartgro
 
     def update(self, args, settings):
 
-        # before updating save results of interest
+        # before updating save data
         os.system("rm -rf iter%i"%settings.iter)
         os.system("mkdir iter%i"%settings.iter)
         os.system("cp confall.gro confall.w confall.ev.embed output.ev iter%i"%settings.iter)
@@ -377,13 +362,13 @@ rm -f $tmpstartgro
             dmapsworker = worker.DMapSamplingWorker()
             dmapsworker.run_md(umgr, settings)
             # run LSDMap
-            dmapsworker.run_lsdmap(umgr,settings, self.npoints, self.nlsdmap, self.nbins_lsdmap, self.borderfrac, self.is2nddc)
+            dmapsworker.run_lsdmap(umgr,settings, self.npoints, self.nlsdmap, self.nbins_lsdmap)
             # run fit
-            dmapsworker.run_fit_dcs(umgr, settings, self.nfitdcs, self.nbinsdcs, self.borderfrac, self.is2nddc)
+            dmapsworker.run_fit_dcs(umgr, settings, self.nfitdcs, self.nbinsdcs)
             # estimate free energy
-            dmapsworker.do_free_energy(self.nbinsfe, self.cutoff, self.kT, self.is2nddc)
+            dmapsworker.do_free_energy(self.nbinsfe, self.cutoff, self.kT)
             # pick new points
-            dmapsworker.pick_new_points(settings, self.is2nddc)
+            dmapsworker.pick_new_points(settings)
             # update for next iteration
             settings.iter = self.update(args, settings)
            

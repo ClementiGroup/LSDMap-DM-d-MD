@@ -151,7 +151,7 @@ class DMapSamplingWorker(object):
         print 'Simulation Execution Time : ', (max(end_times)-min(start_times)).total_seconds()
 
     # TODO: do the preprocessing in parallel to optimize the loading of all the configurations
-    def do_preprocessing_lsdmap(self, settings, npoints, nlsdmap, nbins, border_frac, is2nddc, lsdmapdir):
+    def do_preprocessing_lsdmap(self, settings, npoints, nlsdmap, nbins, lsdmapdir):
 
         logging.info('Load coordinates in confall.gro')
 
@@ -173,18 +173,15 @@ class DMapSamplingWorker(object):
         else:
             # select lsdmap points according to the previous map
             old_dcs = np.loadtxt('confall.ev.embed.old')
-            if is2nddc == 1:
-                logging.info('Select configurations for lsdmap according to the previous map...')
-                logging.info('Build 2D histogram')
-                old_dc1s = old_dcs[:,0]
-                old_dc2s = old_dcs[:,1]
-                # build histogram
-                bins1, bins2, hist_idxs = tools.do_hist2D(old_dc1s, old_dc2s, nbins)
-                # select the fitting points uniquely and uniformly along the first two DCs
-                logging.info('Select fitting points uniformly')
-                self.idxs_lsdmap = tools.pick_points_from_hist2D(hist_idxs, nbins, nlsdmap, border_frac=border_frac)
-            else:
-                raise NotImplementedError("is2nddc should be equal to 1!")
+            logging.info('Select configurations for lsdmap according to the previous map...')
+            logging.info('Build 2D histogram')
+            old_dc1s = old_dcs[:,0]
+            old_dc2s = old_dcs[:,1]
+            # build histogram
+            bins1, bins2, hist_idxs = tools.do_hist2D(old_dc1s, old_dc2s, nbins)
+            # select the fitting points uniquely and uniformly along the first two DCs
+            logging.info('Select fitting points uniformly')
+            self.idxs_lsdmap = tools.pick_points_from_hist2D(hist_idxs, nbins, nlsdmap)
 
         self.coords_lsdmap = self.coords_all[self.idxs_lsdmap]
         self.weights_lsdmap = self.weights_all[self.idxs_lsdmap]
@@ -216,7 +213,7 @@ class DMapSamplingWorker(object):
         self.dc2s = dcs[:,2]
 
 
-    def run_lsdmap(self, umgr, settings, npoints, nlsdmap, nbins, border_frac, is2nddc):
+    def run_lsdmap(self, umgr, settings, npoints, nlsdmap, nbins):
 
         curdir = os.getcwd()
         lsdmapdir = curdir + '/' + 'lsdmap'
@@ -225,7 +222,7 @@ class DMapSamplingWorker(object):
         p1=time.time()
 
         logging.info('Preprocessing LSDMap...')
-        self.do_preprocessing_lsdmap(settings, npoints, nlsdmap, nbins, border_frac, is2nddc, lsdmapdir)
+        self.do_preprocessing_lsdmap(settings, npoints, nlsdmap, nbins, lsdmapdir)
         logging.info('LSDMap preprocessing done')
 
         logging.info('Starting LSDMap')
@@ -253,26 +250,23 @@ class DMapSamplingWorker(object):
         print 'Total Analysis time : ',p2 - p1
 
 
-    def do_preprocessing_fit_dcs(self, settings, nfit, nbins, border_frac, is2nddc, fitdir):
+    def do_preprocessing_fit_dcs(self, settings, nfit, nbins, fitdir):
 
-        if is2nddc == 1:
-            logging.info('Select configurations used for the fitting...')
-            logging.info('Build 2D histogram')
-            # build histogram
-            bins1, bins2, hist_idxs = tools.do_hist2D(self.dc1s, self.dc2s, nbins)
-            # select the fitting points uniquely and uniformly along the first two DCs
-            logging.info('Select fitting points uniformly along the DCs')
-            ndcs = self.dc1s.shape[0]
-            ndcs_preselect_max = min(ndcs, 3000)
-            if nfit < ndcs_preselect_max:
-                # preselection
-                idxs_preselect_dcs = tools.pick_points_from_hist2D(hist_idxs, nbins, ndcs_preselect_max, border_frac=border_frac)
-                # selection
-                idxs_fit = tools.pick_points_2D_optimized(self.dc1s, self.dc2s, nfit, idxs_preselect=idxs_preselect_dcs)
-            else:
-                idxs_fit = tools.pick_points_from_hist2D(hist_idxs, nbins, nfit, border_frac=border_frac)
+        logging.info('Select configurations used for the fitting...')
+        logging.info('Build 2D histogram')
+        # build histogram
+        bins1, bins2, hist_idxs = tools.do_hist2D(self.dc1s, self.dc2s, nbins)
+        # select the fitting points uniquely and uniformly along the first two DCs
+        logging.info('Select fitting points uniformly along the DCs')
+        ndcs = self.dc1s.shape[0]
+        ndcs_preselect_max = min(ndcs, 3000)
+        if nfit < ndcs_preselect_max:
+            # preselection
+            idxs_preselect_dcs = tools.pick_points_from_hist2D(hist_idxs, nbins, ndcs_preselect_max)
+            # selection
+            idxs_fit = tools.pick_points_2D_optimized(self.dc1s, self.dc2s, nfit, idxs_preselect=idxs_preselect_dcs)
         else:
-            raise NotImplementedError("is2nddc should be equal to 1!")
+            idxs_fit = tools.pick_points_from_hist2D(hist_idxs, nbins, nfit)
 
         self.idxs_fit = idxs_fit
 
@@ -296,7 +290,7 @@ class DMapSamplingWorker(object):
         # write ev file used for the fit
         np.savetxt(fitdir + '/' + 'fit.ev', np.array([np.ones(nfit), self.dc1s_fit, self.dc2s_fit]).T, fmt='%15.7e')
 
-    def run_fit_dcs(self, umgr, settings, nfit, nbins, border_frac, is2nddc):
+    def run_fit_dcs(self, umgr, settings, nfit, nbins):
 
         curdir = os.getcwd()
         fitdir = curdir + '/' + 'fit'
@@ -305,22 +299,17 @@ class DMapSamplingWorker(object):
         p1=time.time()
 
         logging.info("Preprocessing Fitting...")
-        self.do_preprocessing_fit_dcs(settings, nfit, nbins, border_frac, is2nddc, fitdir)
+        self.do_preprocessing_fit_dcs(settings, nfit, nbins, fitdir)
         os.system("echo 2 | trjconv -f " + curdir + '/' + "confall.gro -s " + curdir + '/' + "confall.gro \
                    -o " + fitdir + '/' + "embed.gro &>/dev/null")
         logging.info("Fit preprocessing done")
 
         logging.info('Starting Fitting')
 
-        if is2nddc == 1:
-            dc_options = "--dc 1 2"
-        else:
-            dc_options = "--dc 1"
-
         cu = radical.pilot.ComputeUnitDescription()
         cu.pre_exec = known_pre_exec[settings.remote_host]
         cu.input_staging = [curdir + '/' + settings.inifile, fitdir + '/' + 'fit.gro', fitdir + '/' + 'fit.ev', fitdir + '/' + 'embed.gro']
-        cu.executable = 'rbffit' + ' -f ' + settings.inifile + ' -c fit.gro -v fit.ev --embed embed.gro' +  ' ' + dc_options
+        cu.executable = 'rbffit' + ' -f ' + settings.inifile + ' -c fit.gro -v fit.ev --embed embed.gro  --dc 1 2'
         cu.output_staging = ["fit.w > fit/fit.w", "fit.sig > fit/fit.sig", "fit.embed > confall.ev.embed"]
         cu.mpi = True
         cu.cleanup = True
@@ -336,72 +325,7 @@ class DMapSamplingWorker(object):
         print 'Total Analysis time : ', p2 - p1
 
 
-#    def do_preprocessing_fit_free_energy(self, nbins, nfit, cutoff, kT, is2nddc, fedir):
-#    
-#        bins1, bins2, free_energy_grid = self.compute_free_energy_hist(nbins, cutoff, kT, is2nddc)
-#
-#        ninter = nbinstot**2/nfit
-#        os.system('rm -rf ' + fedir)
-#        os.makedirs(fedir)
-#
-#        logging.info("Save results free energy histogram")
-#
-#        xyfile = open(fedir + '/' + 'free_energy.xy', 'w')
-#        slfile = open(fedir + '/' + 'free_energy.sl', 'w')
-#
-#        # construct dc1 and dc2 grids
-#        bins1_grid = bins1[:, np.newaxis].dot(np.ones((1, nbinstot)))
-#        bins2_grid = np.ones((nbinstot,1)).dot(bins2[np.newaxis])
-#
-#        free_energy_grid = np.copy(free_energy_grid) # without this line dstack fails
-#
-#        for idx, line in enumerate(np.dstack((bins1_grid, bins2_grid, free_energy_grid))):
-#            for jdx, (bin1, bin2, fe) in enumerate(line):
-#                if (idx*nbinstot+jdx)%ninter == 0:
-#                    print >> xyfile, '%15.7e %15.7e' %(bin1, bin2)
-#                    print >> slfile, '%15.7e' %fe
-#
-#        xyfile.close()
-#        slfile.close()
-#
-#        # save boundaries
-#        np.savetxt(fedir + '/' + 'bound.txt', np.array([bins1[0], bins1[-1], bins2[0], bins2[-1]])[np.newaxis], fmt='%15.7e')
-#
-#        self.nbins_fe = nbins
-#        self.nextrabins_fe = nextrabins
-#        self.hist_fe = hist
-#
-#    def run_fit_free_energy(self, umgr, settings, nbins, nfit, cutoff, kT, is2nddc):
-#       
-#        curdir = os.getcwd()
-#        fedir = curdir + '/' + 'fe'
-#
-#        print 'Starting Free Energy Estimate'
-#        p1 = time.time()
-#
-#        logging.info("Preprocessing free energy...")
-#        self.do_preprocessing_free_energy(nbins, nfit, cutoff, kT, is2nddc, fedir)
-#        logging.info("Preprocessing done")
-#
-#        logging.info("Fit free energy...")
-#        cu = radical.pilot.ComputeUnitDescription()
-#        cu.executable = 'rbffit' + ' -f ' +  curdir + '/' + settings.inifile + ' -c ' + fedir + '/' + 'free_energy.xy' + \
-#                        ' -v ' + fedir + '/' + 'free_energy.sl' + ' --section ' + 'FE_FITTING'
-#        cu.output_data = ["fit.w > " + fedir + "/fit.w", "fit.sig > " + fedir + "/fit.sig"]
-#        cu.mpi = True
-#        cu.cores = settings.cores
-#
-#        unit = umgr.submit_units(cu)
-#        unit.wait()
-#
-#        logging.info("Fit free energy done...")
-#        p2 = time.time()
-#
-#        print 'Fitting Execution time : ',(unit.stop_time - unit.start_time).total_seconds()
-#        print 'Total Analysis time : ', p2 - p1
-#
-#
-    def do_free_energy(self, nbins, cutoff, kT, is2nddc):
+    def do_free_energy(self, nbins, cutoff, kT):
 
         curdir = os.getcwd()
         fedir = curdir + '/' + 'fe'
@@ -409,7 +333,7 @@ class DMapSamplingWorker(object):
         os.system('rm -rf ' + fedir)
         os.makedirs(fedir)
 
-        bins1, bins2, free_energy_grid = self.compute_free_energy_hist(nbins, cutoff, kT, is2nddc, fedir)
+        bins1, bins2, free_energy_grid = self.compute_free_energy_hist(nbins, cutoff, kT, fedir)
         grad1, grad2 = np.gradient(free_energy_grid, bins1[1]-bins1[0], bins2[1]-bins2[0])
 
         nbinstot = bins1.shape[0]
@@ -440,7 +364,7 @@ class DMapSamplingWorker(object):
         slfile.close()
         return
 
-    def compute_free_energy_hist(self, nbins, cutoff, kT, is2nddc, fedir):
+    def compute_free_energy_hist(self, nbins, cutoff, kT, fedir):
 
         dcs = np.loadtxt("confall.ev.embed")
         wfile = reader.open("confall.w")
@@ -451,46 +375,42 @@ class DMapSamplingWorker(object):
 
         nbinstot = nbins+2*nextrabins
 
-        if is2nddc == 1:
-            self.dc1s_embed = dcs[:,0]
-            self.dc2s_embed = dcs[:,1]
+        self.dc1s_embed = dcs[:,0]
+        self.dc2s_embed = dcs[:,1]
 
-            logging.info("Build free energy histogram...")
-            # build histogram
-            bins1, bins2, hist_idxs = tools.do_hist2D(self.dc1s_embed, self.dc2s_embed, nbins, nextrabins=nextrabins)
+        logging.info("Build free energy histogram...")
+        # build histogram
+        bins1, bins2, hist_idxs = tools.do_hist2D(self.dc1s_embed, self.dc2s_embed, nbins, nextrabins=nextrabins)
 
-            # build free energy grid
-            free_energy_grid = np.zeros((nbinstot, nbinstot))
-            for idx, row in enumerate(hist_idxs):
-                for jdx, col in enumerate(row):
-                    npoints = len(col)
-                    weight = 0
-                    for grid_idx in col:
-                        weight += weights[grid_idx]
-                    if npoints == 0:
-                        free_energy_grid[idx, jdx] = None
-                    else:
-                        free_energy_grid[idx, jdx] = -kT*np.log(weight)
+        # build free energy grid
+        free_energy_grid = np.zeros((nbinstot, nbinstot))
+        for idx, row in enumerate(hist_idxs):
+            for jdx, col in enumerate(row):
+                npoints = len(col)
+                weight = 0
+                for grid_idx in col:
+                    weight += weights[grid_idx]
+                if npoints == 0:
+                    free_energy_grid[idx, jdx] = None
+                else:
+                    free_energy_grid[idx, jdx] = -kT*np.log(weight)
 
-            # give values to all NaN
-            free_energy_grid[np.isnan(free_energy_grid)] = np.nanmax(free_energy_grid) + 0.1
+        # give values to all NaN
+        free_energy_grid[np.isnan(free_energy_grid)] = np.nanmax(free_energy_grid) + 0.1
 
-            # smooth the grid
-            free_energy_grid = tools.smooth2a(free_energy_grid, nsmooth, nsmooth)
+        # smooth the grid
+        free_energy_grid = tools.smooth2a(free_energy_grid, nsmooth, nsmooth)
 
-            # rescale so that the maximum value is 0
-            free_energy_grid -= np.max(free_energy_grid)
+        # rescale so that the maximum value is 0
+        free_energy_grid -= np.max(free_energy_grid)
 
-            # rescale if the minimum is < than - cutoff
-            min_free_energy_grid = np.min(free_energy_grid)
-            if min_free_energy_grid < -cutoff :
-                free_energy_grid += -min_free_energy_grid - cutoff
-                free_energy_grid[free_energy_grid>0.0] = 0.0
+        # rescale if the minimum is < than - cutoff
+        min_free_energy_grid = np.min(free_energy_grid)
+        if min_free_energy_grid < -cutoff :
+            free_energy_grid += -min_free_energy_grid - cutoff
+            free_energy_grid[free_energy_grid>0.0] = 0.0
 
-            free_energy_grid = np.copy(free_energy_grid) # without this line it fails
-
-        else:
-            raise NotImplementedError("is2nddc should be equal to 1!")
+        free_energy_grid = np.copy(free_energy_grid) # without this line it fails
 
         # rescale the bins so that it takes the middle of each old bin
         bins1 = (bins1[1]-bins1[0])/2 + bins1[:-1]
@@ -502,23 +422,20 @@ class DMapSamplingWorker(object):
 
         return bins1, bins2, free_energy_grid
 
-    def pick_new_points(self, settings, is2nddc):
+    def pick_new_points(self, settings):
 
         curdir = os.getcwd()
 
         logging.info("Pick new configurations for the next iteration.")
-        if is2nddc == 1:
-            ndcs = self.dc1s_embed.shape[0]
-            ndcs_preselect_max = min(ndcs, 1000)
-            if settings.nreplicas < ndcs_preselect_max:
-                # preselection
-                idxs_preselect_dcs = tools.pick_points_from_hist2D(self.hist_idxs_fe, self.nbinsfe+2*self.nextrabinsfe, ndcs_preselect_max)
-                # selection
-                idxs_new_dcs = tools.pick_points_2D_optimized(self.dc1s_embed, self.dc2s_embed, settings.nreplicas, idxs_preselect=idxs_preselect_dcs)
-            else:
-                idxs_new_dcs = tools.pick_points_from_hist2D(self.hist_idxs_fe, self.nbinsfe+2*self.nextrabinsfe, settings.nreplicas)
+        ndcs = self.dc1s_embed.shape[0]
+        ndcs_preselect_max = min(ndcs, 1000)
+        if settings.nreplicas < ndcs_preselect_max:
+            # preselection
+            idxs_preselect_dcs = tools.pick_points_from_hist2D(self.hist_idxs_fe, self.nbinsfe+2*self.nextrabinsfe, ndcs_preselect_max)
+            # selection
+            idxs_new_dcs = tools.pick_points_2D_optimized(self.dc1s_embed, self.dc2s_embed, settings.nreplicas, idxs_preselect=idxs_preselect_dcs)
         else:
-            raise NotImplementedError("is2nddc should be equal to 1!")
+            idxs_new_dcs = tools.pick_points_from_hist2D(self.hist_idxs_fe, self.nbinsfe+2*self.nextrabinsfe, settings.nreplicas)
 
         new_coords = self.coords_all[idxs_new_dcs]
 

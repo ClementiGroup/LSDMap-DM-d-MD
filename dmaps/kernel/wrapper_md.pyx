@@ -37,7 +37,6 @@ cdef public struct BiasedMD:
 
 cdef public struct DMSConfig:
     int isfirst
-    int is2nddc
     int nstride
     int nsave
     int nsavedcs
@@ -88,9 +87,6 @@ cdef public DMSConfig* initDMSConfig(const char* file):
     # first iteration?
     dmsc.isfirst = config.getint('DMAPS', 'isfirst')
 
-    # use 2nd dc?
-    dmsc.is2nddc = config.getint('DMAPS', 'is2nddc')
-
     # number of points saved per replica
     dmsc.nstride = config.getint('DMAPS', 'nstride')
 
@@ -113,37 +109,27 @@ cdef public FEHist* initFEHist(DMSConfig *dmsc, const char* file):
         # allocate memory for the bins along DC1
         feh.binsdc1 = <float *>malloc(feh.nbins*sizeof(float))
 
-        if dmsc.is2nddc == 1:
-            # allocate memory for the bins along DC2
-            feh.binsdc2 = <float *>malloc(feh.nbins*sizeof(float))
+        # allocate memory for the bins along DC2
+        feh.binsdc2 = <float *>malloc(feh.nbins*sizeof(float))
 
         # allocate memory for the gradient along DC1
         feh.graddc1 = <float *>malloc(feh.nbins*feh.nbins*sizeof(float))
         
         # allocate memory for the gradient along DC2
-        if dmsc.is2nddc == 1:
-            feh.graddc2 = <float *>malloc(feh.nbins*feh.nbins*sizeof(float))
+        feh.graddc2 = <float *>malloc(feh.nbins*feh.nbins*sizeof(float))
 
         # allocate memory for the values of the free energy
         feh.values = <float *>malloc(feh.nbins*feh.nbins*sizeof(float))
 
         for idx in xrange(feh.nbins):
-            if dmsc.is2nddc == 0:
-                # update values of the bins
-                feh.binsdc1[idx] = float(binsdc[idx])
-            else:
-                # update values of the bins
-                feh.binsdc1[idx] = float(binsdc[idx,0])
-                feh.binsdc2[idx] = float(binsdc[idx,1])
+            # update values of the bins
+            feh.binsdc1[idx] = float(binsdc[idx,0])
+            feh.binsdc2[idx] = float(binsdc[idx,1])
 
         for idx in xrange(feh.nbins*feh.nbins):
-            if dmsc.is2nddc == 0:
-                # update values of the gradient
-                feh.graddc1[idx] = float(graddcs[idx])
-            else:
-                # update values of the gradient
-                feh.graddc1[idx] = float(graddcs[idx,0])
-                feh.graddc2[idx] = float(graddcs[idx,1])
+            # update values of the gradient
+            feh.graddc1[idx] = float(graddcs[idx,0])
+            feh.graddc2[idx] = float(graddcs[idx,1])
 
             # update values of the free energy
             feh.values[idx] = float(free_energy[idx][2])
@@ -177,12 +163,11 @@ cdef public Fit* initFit(DMSConfig *dmsc, const char* file):
         # allocate memory for the values of sigma used for the fit (1st DC)
         ft.sigma1 = <float *>malloc(ft.npoints*sizeof(float))
 
-        if dmsc.is2nddc == 1:
-            # allocate memory for the weights used for the fit (2nd DC)
-            ft.weights2 = <float *>malloc(ft.npoints*sizeof(float))
+        # allocate memory for the weights used for the fit (2nd DC)
+        ft.weights2 = <float *>malloc(ft.npoints*sizeof(float))
 
-            # allocate memory for the values of sigma used for the fit (2nd DC)
-            ft.sigma2 = <float *>malloc(ft.npoints*sizeof(float))
+        # allocate memory for the values of sigma used for the fit (2nd DC)
+        ft.sigma2 = <float *>malloc(ft.npoints*sizeof(float))
 
         for idx in xrange(ft.npoints):
             # update coordinates
@@ -190,24 +175,17 @@ cdef public Fit* initFit(DMSConfig *dmsc, const char* file):
                 for kdx in xrange(natoms):
                     ft.coords[idx + ft.npoints*(jdx+3*kdx)] = float(coordsfit[idx][jdx][kdx]) # Python-like array
 
-            if dmsc.is2nddc == 0:
-                # update weights
-                ft.weights1[idx] = float(weightsfit[idx])
+            # update weights (1st DC)
+            ft.weights1[idx] = float(weightsfit[idx,0])
 
-                # update sigma values
-                ft.sigma1[idx] = float(sigmafit[idx])
-            else:
-                # update weights (1st DC)
-                ft.weights1[idx] = float(weightsfit[idx,0])
+            # update weights (2nd DC)
+            ft.weights2[idx] = float(weightsfit[idx,1])
 
-                # update weights (2nd DC)
-                ft.weights2[idx] = float(weightsfit[idx,1])
+            # update sigma values (1st DC)
+            ft.sigma1[idx] = float(sigmafit[idx,0])
 
-                # update sigma values (1st DC)
-                ft.sigma1[idx] = float(sigmafit[idx,0])
-
-                # update sigma values (2nd DC)
-                ft.sigma2[idx] = float(sigmafit[idx,1])
+            # update sigma values (2nd DC)
+            ft.sigma2[idx] = float(sigmafit[idx,1])
 
         # initialize parser 
         config = ConfigParser.SafeConfigParser()
