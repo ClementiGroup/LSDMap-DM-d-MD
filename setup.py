@@ -99,22 +99,15 @@ ext_modules = [Extension(
     sources=["lsdmap/util/util.{}".format('pyx' if use_cython else 'c')],
     include_dirs=[numpy_include],
     extra_compile_args=["-O3","-ffast-math"],
-    ), Extension(
-    name='dmaps/kernel/libdms',
-    sources=["dmaps/kernel/wrapper_md.{}".format('pyx' if use_cython else 'c')],
-    libraries=['python2.' + str(sys.version_info[1]), 'util'],
-    library_dirs=[sys.prefix + '/' + 'lib'],
-    include_dirs=[numpy_include],
-    extra_compile_args=["-O3","-ffast-math"],
-    )]
+    ),
+    ]
 
 setup(name='lsdmap',
-      packages=['lsdmap', 'lsdmap.mpi', 'lsdmap.rw', 'lsdmap.util', 'lsdmap.rbf', 'dmdmd', 'dmdmd.tools', 'dmaps', 'dmaps.kernel', 'dmaps.tools'],
-      scripts = ['bin/lsdmap','bin/dmdmd', 'bin/dmaps', 'bin/rbffit','bin/reweighting','bin/selection','bin/p_mdrun'],
+      packages=['lsdmap', 'lsdmap.mpi', 'lsdmap.rw', 'lsdmap.util', 'lsdmap.rbf', 'dmdmd', 'dmdmd.tools'],
+      scripts = ['bin/lsdmap','bin/dmdmd', 'bin/rbffit','bin/reweighting','bin/selection','bin/p_mdrun'],
       ext_modules = cythonize(ext_modules),
       cmdclass = cmdclass,
       license='LICENSE.txt',
       description='LSDMap package',
       long_description=open('README.md').read(),
-      #data_files=[(get_python_lib()+'/dmaps/kernel', ['dmaps/kernel/run.sh'])]
      )
