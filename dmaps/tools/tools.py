@@ -137,9 +137,10 @@ def compute_free_energy(grid, ndim, weights, cutoff, kT):
     free_energy_grid[np.isnan(free_energy_grid)] = np.nanmax(free_energy_grid) + 0.1
 
     # smooth the data
-    #free_energy_grid = ndimage.uniform_filter(free_energy_grid, size=2)
     if ndim == 2:
         free_energy_grid = smooth2a(free_energy_grid, 1, 1)
+    elif ndim > 2:
+        free_energy_grid = ndimage.uniform_filter(free_energy_grid, size=2)
 
     # rescale so that the maximum value is 0
     free_energy_grid -= np.max(free_energy_grid)

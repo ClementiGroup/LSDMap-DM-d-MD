@@ -43,7 +43,7 @@ def startPilot(settings):
     pdesc.resource = settings.remote_host
     pdesc.runtime = settings.runtime
     pdesc.cores = settings.cores
-    if settings.sandbox:
+    if hasattr(settings,'sandbox'):
         pdesc.sandbox = settings.sandbox
     if settings.remote_host != "localhost":
         pdesc.queue = settings.queue
