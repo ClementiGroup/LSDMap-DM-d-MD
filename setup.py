@@ -116,5 +116,4 @@ setup(name='lsdmap',
       license='LICENSE.txt',
       description='LSDMap package',
       long_description=open('README.md').read(),
-      #data_files=[(get_python_lib()+'/dmaps/kernel', ['dmaps/kernel/run.sh'])]
      )

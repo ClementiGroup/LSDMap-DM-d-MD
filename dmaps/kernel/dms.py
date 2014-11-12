@@ -12,16 +12,15 @@ import radical.pilot
 import numpy as np
 
 from dmaps.tools import pilot
-from dmaps.tools.config import platforms, tmpfiles
+from dmaps.tools.config import platforms
 from dmaps.kernel import worker
 
 class DMapSampling(object):
 
     def initialize(self, settings):
 
-        for key, value in tmpfiles.iteritems():
-            if settings.startgro == value[0]:
-                raise ValueError("name " + settings.startgro + " is already allocated for " + value[1] + " and thus can not be assigned to variable startgro! \
+        if settings.startgro == 'input.gro':
+            raise ValueError("name input.gro is already allocated for md input file and thus can not be assigned to variable startgro! \
 	                      Please use a different name")
 
         if hasattr(settings, "inifile"):
@@ -35,7 +34,7 @@ class DMapSampling(object):
             raise IOError(".ini file does not exist:" + inifile)
 
         if settings.iter == 0:
-            with open(tmpfiles['ingro'][0], 'w') as ifile:
+            with open('input.gro', 'w') as ifile:
                 for idx in xrange(settings.nreplicas):
                     with open(settings.startgro, 'r') as sfile:
                        for line in sfile:
@@ -90,6 +89,9 @@ class DMapSampling(object):
         # first iteration?
         self.isfirst = config.getint('DMAPS', 'isfirst')
 
+        # number of first dcs used
+        self.ndcs = config.getint('DMAPS', 'ndcs')
+
         # total number of configurations
         self.npoints = settings.nreplicas * self.nstride
 
@@ -103,7 +105,7 @@ class DMapSampling(object):
             self.nlsdmap = nlsdmap
 
         # number of bins used to build the histogram for the free energy
-        self.nbinsfe = int(floor(self.npoints**(1./3)))
+        self.nbinsfe = int(sqrt(self.npoints))
 
         # temperature in Kelvins
         temperature = config.getint('MD', 'temperature')
@@ -133,10 +135,10 @@ class DMapSampling(object):
         self.nfitdcs = config.getint('FITTING', 'npoints')
 
         # number of bins used to build the histogram to select the fitting points
-        self.nbinsdcs = int(floor(self.nlsdmap**(1./3)))
+        self.nbinsdcs = int(sqrt(self.nlsdmap))
 
         # number of bins used to build the histogram to select the lsdmap points
-        self.nbins_lsdmap = int(floor(self.npoints**(1./3)))
+        self.nbins_lsdmap = int(sqrt(self.npoints))
 
 
     def write_md_script(self, filename, settings):
@@ -174,15 +176,12 @@ class DMapSampling(object):
 
 startgro=input.gro
 tmpstartgro=tmp.gro
-outgro=out.gro
 
 natoms=$(sed -n '2p' $startgro)
 nlines_per_frame=$((natoms+3))
 
 nlines=`wc -l $startgro| cut -d' ' -f1`
 nframes=$((nlines/nlines_per_frame))
-
-rm -rf $outgro
 
 for idx in `seq 1 $nframes`; do
 
@@ -193,9 +192,6 @@ for idx in `seq 1 $nframes`; do
   # gromacs preprocessing & MD
   grompp -f %(mdpfile)s -c $tmpstartgro -p %(topfile)s %(grompp_options)s &> /dev/null
   mdrun -nt 1 -dms %(inifile)s -s topol.tpr %(mdrun_options)s &> mdrun.log
-
-  # store data
-  cat confout.gro >> $outgro
 
 done
 
@@ -208,28 +204,27 @@ rm -f $tmpstartgro
     def update(self, args, settings):
 
         # before updating save data
-        os.system("rm -rf iter%i"%settings.iter)
-        os.system("mkdir iter%i"%settings.iter)
-        os.system("cp confall.gro confall.w confall.ev.embed output.ev iter%i"%settings.iter)
-        os.system("cp output.ev " + tmpfiles['outgro'][0] + " iter%i" %settings.iter)
-        os.system("cp -r fit fe lsdmap iter%i"%settings.iter)       
+        os.system('rm -rf iter%i'%settings.iter)
+        os.system('mkdir iter%i'%settings.iter)
+        os.system('cp ' + ' '.join(['confall.gro', 'confall.w', 'confall.ev.embed', 'output.gro', 'output.ev']) + ' iter%i'%settings.iter)
+        os.system('cp -r ' + ' '.join(['lsdmap', 'fit', 'fe']) + ' iter%i'%settings.iter)
  
         if settings.iter > 0:
-	    os.system("cp confall.ev.embed.old iter%i"%settings.iter)
+            os.system('cp confall.ev.embed.old iter%i'%settings.iter)
 
-        autocorrelation_time_dc1, autocorrelation_time_dc2 = self.get_dcs_autocorrelation_time(settings)
+        autocorrelation_time_dcs = self.get_dcs_autocorrelation_time(settings)
 
-        if self.nsteps_guess:
-            min_autocorrelation_time_dc = min(autocorrelation_time_dc1, autocorrelation_time_dc2)
-            self.nsteps = max(self.nstride*min_autocorrelation_time_dc/settings.nreplicas, self.nstride*(self.nsteps_min/self.nstride))
-            os.system("sed -i" + self.sedarg + "'s/nsteps.*/nsteps                   = %i/g' "%self.nsteps + settings.mdpfile)
-            logging.info("nsteps for next MD simulations has been set to %i"%self.nsteps)
+        #if self.nsteps_guess:
+        #    min_autocorrelation_time_dc = min(autocorrelation_time_dc1, autocorrelation_time_dc2)
+        #    self.nsteps = max(self.nstride*min_autocorrelation_time_dc/settings.nreplicas, self.nstride*(self.nsteps_min/self.nstride))
+        #    os.system("sed -i" + self.sedarg + "'s/nsteps.*/nsteps                   = %i/g' "%self.nsteps + settings.mdpfile)
+        #    logging.info("nsteps for next MD simulations has been set to %i"%self.nsteps)
 
-        os.system("mv " + tmpfiles['outgro'][0] + ' ' + tmpfiles['ingro'][0])
-        os.system("sed -i" + self.sedarg + "'s/iter=.*/iter=%i/g' "%(settings.iter+1) + args.setfile)
-        os.system("sed -i" + self.sedarg + "'s/isfirst=.*/isfirst=0/g' " + settings.inifile)
+        os.system('mv output.gro input.gro')
+        os.system('sed -i' + self.sedarg + "'s/iter=.*/iter=%i/g' "%(settings.iter+1) + args.setfile)
+        os.system('sed -i' + self.sedarg + "'s/isfirst=.*/isfirst=0/g' " + settings.inifile)
 
-        return settings.iter+1
+        return settings.iter + 1
 
 
     def get_dcs_autocorrelation_time(self, settings):
@@ -239,60 +234,44 @@ rm -f $tmpstartgro
             os.system('cp confall.ev.embed autocorr.ev')
 
         dcs = np.loadtxt('autocorr.ev')
-        ndcs = dcs.shape[0]
-        ndcs_per_replica = ndcs/settings.nreplicas
+	if self.ndcs == 1:
+	    dcs = dcs[:,np.newaxis]
+        nvalues = dcs.shape[0]
+        nvalues_per_replica = nvalues/settings.nreplicas
        
-        step = np.linspace(0, self.nsteps, ndcs_per_replica+1).astype(int)
+        step = np.linspace(0, self.nsteps, nvalues_per_replica+1).astype(int)
         step = step[:-1]
-        autocorrelation_dc1 = np.zeros(ndcs_per_replica)
-        autocorrelation_dc2 = np.zeros(ndcs_per_replica)
+        autocorrelation_dcs = np.zeros((nvalues_per_replica, self.ndcs))
+        autocorrelation_time_dcs = np.zeros(self.ndcs)
 
         logging.info("Compute DCs autocorrelation time")
 
         for idx in xrange(settings.nreplicas):
        
-            # load dc1s values
-            dc1s = dcs[idx*ndcs_per_replica:(idx+1)*ndcs_per_replica, 0]
+            # load dcs values
+            dcs_values = dcs[idx*nvalues_per_replica:(idx+1)*nvalues_per_replica, :]
         
-            vardc1s = dc1s.var()
-            meandc1s = dc1s.mean()
-            dc1s -= meandc1s
-        
-            autocorrelation_tmp = np.correlate(dc1s, dc1s, mode='full')[-ndcs_per_replica:]
-            autocorrelation_tmp /= vardc1s*(np.arange(ndcs_per_replica, 0, -1))
-            autocorrelation_dc1 += autocorrelation_tmp
-        
-            # load dc2s values
-            dc2s = dcs[idx*ndcs_per_replica:(idx+1)*ndcs_per_replica, 1]
-       
-            vardc2s = dc2s.var()
-            meandc2s = dc2s.mean()
-            dc2s -= meandc2s
-        
-            autocorrelation_tmp = np.correlate(dc2s, dc2s, mode='full')[-ndcs_per_replica:]
-            autocorrelation_tmp /= vardc2s*(np.arange(ndcs_per_replica, 0, -1))
-            autocorrelation_dc2 += autocorrelation_tmp
-       
-        for idx in xrange(ndcs_per_replica):
-            if autocorrelation_dc1[idx] <= autocorrelation_dc1[0]/2:
-                break
-        autocorrelation_time_dc1 = step[idx]
+            vardcs = dcs_values.var(axis=0)
+            meandcs = dcs_values.mean(axis=0)
+            dcs_values -= meandcs
 
-        for idx in xrange(ndcs_per_replica):
-            if autocorrelation_dc2[idx] <= autocorrelation_dc2[0]/2:
-                break
-        autocorrelation_time_dc2 = step[idx]
+            for jdx in range(self.ndcs):
+                tmp = np.correlate(dcs_values[:,jdx], dcs_values[:,jdx], mode='full')[-nvalues_per_replica:]
+                tmp /= vardcs[jdx]*np.arange(nvalues_per_replica, 0, -1)
+                autocorrelation_dcs[:,jdx] += tmp
+        
+        for jdx in xrange(self.ndcs):
+            for idx in xrange(nvalues_per_replica):
+                if autocorrelation_dcs[idx, jdx] <= autocorrelation_dcs[0, jdx]/2:
+                    break
+            autocorrelation_time_dcs[jdx] = step[idx]
 
-        logging.info("Autocorrelation time along DC1: %i steps"%autocorrelation_time_dc1)
-        logging.info("Autocorrelation time along DC2: %i steps"%autocorrelation_time_dc2)
+        logging.info("Autocorrelation times (time steps): " + ", ".join(map(str,autocorrelation_time_dcs.tolist())))
 
         autocorrdir = 'autocorr'
-        os.system("rm -rf " + autocorrdir)
-        os.makedirs(autocorrdir)
+        os.system('rm -rf autocorr; mkdir autocorr')
 
-        np.savetxt(autocorrdir + '/' + 'dcs.xyz', np.array([step, autocorrelation_dc1, autocorrelation_dc2]).T, fmt='%15.7e')
-
-        return autocorrelation_time_dc1, autocorrelation_time_dc2
+        np.savetxt('autocorr/autocorr.dat', np.hstack((step[:,np.newaxis], autocorrelation_dcs)), fmt='%15.7e')
 
 
     def restart_from_iter(self, num_iter, args):
@@ -300,19 +279,19 @@ rm -f $tmpstartgro
         logging.info("restarting from iteration %i" %num_iter)
         # remove iter folders with iter number >= num_iter
         os.system('for dir in iter*; do num=`cut -d "r" -f 2 <<< $dir`; if [ "$num" -ge %i ]; then rm -rf $dir; fi ; done'%num_iter)
-        os.system("cp iter%i/"%(num_iter-1) + tmpfiles['outgro'][0] + " " + tmpfiles['ingro'][0])
-        os.system("rm -rf fit lsdmap autocorr tmp fe")
-        os.system("cp -r iter%i/{fit,fe,lsdmap} ."%(num_iter-1))
+        os.system('cp iter%i/output.gro input.gro')
+        os.system('rm -rf ' + ' '.join(['lsdmap', 'fit', 'fedir']))
+        os.system('cp -r iter%i/{'%(num_iter-1) + ','.join(['lsdmap', 'fit', 'fe']) + '} .')
 
         # update iter in settings file
-        os.system("sed -i" + self.sedarg + "'s/iter=.*/iter=%i/g' "%num_iter + args.setfile)
+        os.system('sed -i' + self.sedarg + "'s/iter=.*/iter=%i/g' "%num_iter + args.setfile)
 
         return
 
     def restart(self, args):
        
-        os.system("sed -i" + self.sedarg + "'s/iter=.*/iter=0/g' settings")
-        os.system("rm -rf iter* fit lsdmap autocorr tmp fe")
+        os.system('sed -i' + self.sedarg + "'s/iter=.*/iter=0/g' settings")
+        os.system('rm -rf iter* ' + ' '.join(['lsdmap', 'fit', 'fe', 'md']))
 
         return
 
@@ -362,13 +341,11 @@ rm -f $tmpstartgro
             dmapsworker = worker.DMapSamplingWorker()
             dmapsworker.run_md(umgr, settings)
             # run LSDMap
-            dmapsworker.run_lsdmap(umgr,settings, self.npoints, self.nlsdmap, self.nbins_lsdmap)
+            dmapsworker.run_lsdmap(umgr,settings, self.npoints, self.nlsdmap, self.nbins_lsdmap, self.ndcs)
             # run fit
-            dmapsworker.run_fit_dcs(umgr, settings, self.nfitdcs, self.nbinsdcs)
-            # estimate free energy
-            dmapsworker.do_free_energy(self.nbinsfe, self.cutoff, self.kT)
-            # pick new points
-            dmapsworker.pick_new_points(settings)
+            dmapsworker.run_fit_dcs(umgr, settings, self.nfitdcs, self.nbinsdcs, self.ndcs)
+            # estimate free energy (and pick new points)
+            dmapsworker.do_free_energy(umgr, settings, self.nbinsfe, self.cutoff, self.kT, self.ndcs)
             # update for next iteration
             settings.iter = self.update(args, settings)
            

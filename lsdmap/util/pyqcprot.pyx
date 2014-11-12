@@ -482,34 +482,34 @@ def CalcRMSDGradient(np.ndarray[npfloat,ndim=2] ref,
 
     cdef double rmsd
     cdef int N = conf.shape[1]
-    cdef np.ndarray[npfloat,ndim=1] rot = np.zeros(9, dtype=ref.dtype)
     cdef unsigned int i, j, k, l
+    cdef float rotconf
+    cdef np.ndarray[npfloat,ndim=1] rot = np.zeros(9, dtype=ref.dtype)
 
-    cdef np.ndarray[npfloat,ndim=1] rotconf = np.zeros(3, dtype=ref.dtype)
+    # the following lines are here to show how to apply the rotational matrix in order to recover the right RMSD
+    #cdef double trmsd = 0.0
+    #cdef np.ndarray[npfloat,ndim=1] trot = np.zeros(3, dtype=ref.dtype)
 
-    # the following lines are here to show how to use the rotational matrix in order to recover the right RMSD
-    # cdef double trmsd = 0.0
-    # cdef np.ndarray[npfloat,ndim=1] trot = np.zeros(3, dtype=ref.dtype)
+    #rmsd = CalcRMSDRotationalMatrix(ref, conf, rot, weights)
 
-    rmsd = CalcRMSDRotationalMatrix(ref, conf, rot, weights)
-
-    # for k in xrange(N):
-    #     for i in xrange(3):
-    #         trot[i] = 0.0
-    #         for j in xrange(3):
-    #             trot[i] += rot[3*i+j] * ref[j,k]
-    #     trmsd += (trot[0]-conf[0,k])**2 + (trot[1]-conf[1,k])**2 + (trot[2]-conf[2,k])**2
-    # trmsd = sqrt(trmsd/N)
-    # print rmsd, trmsd
+    #for k in xrange(N):
+    #    for i in xrange(3):
+    #        trot[i] = 0.0
+    #        for j in xrange(3):
+    #            trot[i] += rot[3*i+j] * ref[j,k]
+    #    trmsd += (trot[0]-conf[0,k])**2 + (trot[1]-conf[1,k])**2 + (trot[2]-conf[2,k])**2
+    #trmsd = sqrt(trmsd/N)
+    #print rmsd, trmsd
 
     # compute gradient
 
+    rmsd = CalcRMSDRotationalMatrix(ref, conf, rot, weights)
+
     for k in xrange(N):
         for i in xrange(3):
-            rotconf[i] = 0.0
+            rotconf = 0.0
             for j in xrange(3):
-                rotconf[i] += rot[i+3*j] * conf[j,k]
-            grad[i,k] = ref[i,k] - rotconf[i]
+                rotconf += rot[i+3*j] * conf[j,k]
+            grad[i,k] = (ref[i,k] - rotconf)/N/rmsd
 
-    grad /= N*rmsd
     return rmsd

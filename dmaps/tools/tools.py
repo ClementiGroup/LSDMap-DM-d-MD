@@ -1,5 +1,9 @@
+import sys
 import random
+import copy
+import math
 import numpy as np
+import scipy.ndimage as ndimage 
 from scipy.sparse import spdiags
 
 def smooth2a(arrayin, nr, nc):
@@ -38,142 +42,187 @@ def smooth2a(arrayin, nr, nc):
     return arrayout
 
 
-def do_hist2D(x, y, nbins, nextrabins=0):
+def do_grid(data, nbins, nextrabins=0):
+    """
+    Performs multi-dimensional histogram (grid containing the indices of each data instead of the local density)
+        data should be an array whose columns correspond to the several dimensions
+"""
 
-    # build a 2D histogram
-    min_x = np.amin(x)
-    max_x = np.amax(x)
-
-    min_y = np.amin(y)
-    max_y = np.amax(y)
-
-    step_x = (max_x - min_x)/nbins
-    step_y = (max_y - min_y)/nbins
-
-    bins1 = min_x - (nextrabins*step_x) + np.array(range(nbins+2*nextrabins+1)) * step_x
-    bins2 = min_y - (nextrabins*step_y) + np.array(range(nbins+2*nextrabins+1)) * step_y
-
-    # rescale the last non-extras bin to include the very last point
-    bins1[-1-nextrabins] += 1e-6
-    bins2[-1-nextrabins] += 1e-6
-
-    inds1 = np.digitize(x, bins1) - 1  # create array with the number of the bin every point is in
-    inds2 = np.digitize(y, bins2) - 1
-
-    hist_idxs = [[[] for idx in range(nbins+2*nextrabins)] for jdx in range(nbins+2*nextrabins)]
-
-    # rescale back the last non-extra bins
-    bins1[-1-nextrabins] -= 1e-6
-    bins2[-1-nextrabins] -= 1e-6
-
-    # create histogram
-    for idx, [ind1, ind2] in enumerate(np.array([inds1, inds2]).T):
-        hist_idxs[ind1][ind2].append(idx)
-
-    return bins1, bins2, hist_idxs
-
-
-def pick_points_from_hist2D(hist_idxs, nbins, npoints, border_frac=0.0):
-
-    drawn_points = []
-
-    hist = np.zeros((nbins,nbins), dtype ='int')
-    for idx in range(nbins):
-        for jdx in range(nbins):
-            hist[idx][jdx] = len(hist_idxs[idx][jdx])
-
-    if border_frac > 0.0:
-        nborder = int(border_frac*npoints)
-    
-        #finding border bins
-        border_bins = []
-        tot_points_border = 0
-        for idx in range(nbins):
-            # looking from left 
-            for jdx in range(nbins):
-                if hist[idx][jdx] > 0:
-                    which_bin = [idx, jdx]
-                    if which_bin not in border_bins:
-                        border_bins.append(which_bin)
-                        tot_points_border += hist[which_bin[0], which_bin[1]]
-                    break
-            for jdx in range(nbins-1,-1,-1):
-	        if hist[idx][jdx] > 0:
-                    which_bin = [idx, jdx]
-                    if which_bin not in border_bins:
-                        border_bins.append(which_bin)
-                        tot_points_border += hist[which_bin[0], which_bin[1]]
-                    break
-            for jdx in range(nbins):
-                if hist[jdx][idx] > 0:
-                    which_bin = [jdx, idx]
-                    if which_bin not in border_bins:
-                        border_bins.append(which_bin)
-                        tot_points_border += hist[which_bin[0], which_bin[1]]
-                    break
-            for jdx in range(nbins-1,-1,-1):
-	        if hist[jdx][idx] > 0:
-                    which_bin = [jdx, idx]
-                    if which_bin not in border_bins:
-                        border_bins.append(which_bin)
-                        tot_points_border += hist[which_bin[0], which_bin[1]]
-                    break
-
-        # draw points
-        # if points on border are less than desired number draw them all
-        if tot_points_border <= nborder:
-            for which_bin in border_bins:
-                for point in hist_idxs[which_bin[0]][which_bin[1]]:
-                    drawn_points.append(point)
-            npicked = tot_points_border
-        else:
-            npicked = 0
-            while npicked < nborder:
-                # draw a bin and a point in it
-                which_bin = random.choice(border_bins)
-                point = random.choice(hist_idxs[which_bin[0]][which_bin[1]])
-    
-                # if point has already been drawn take another one in the same bin but check not all the points in the bin are already in drawn_points. Next two commented lines don't work, need to fix them
-                #while (point in drawn_points) and (hist_idxs[which_bin[0]][which_bin[1]] not in drawn_points):
-                #    point = rd.choice(hist_idxs[which_bin[0]][which_bin[1]])
-                if point not in drawn_points:
-                    drawn_points.append(point)
-                    npicked += 1
+    npoints = data.shape[0] 
+    if len(data.shape) == 1:
+        ndim = 1
+        data = data[:,np.newaxis]
     else:
-        npicked = 0
+        ndim = data.shape[1]
 
-    # construct list with nonempty bins to save time when drawing if many bins are empty (useful?)
-    nonempty_bins = []
-    for idx in range(nbins):
-        for jdx in range(nbins):
-            if hist[idx][jdx] != 0:
-                nonempty_bins.append([idx, jdx])
-    # draw remaining points uniformly
+
+    window = 1e-8 # normally the window should depend on the data
+    mins = np.amin(data, axis=0) - window
+    maxs = np.amax(data, axis=0) + window
+    steps = (maxs - mins)/nbins
+
+    mins = mins - nextrabins*steps
+    nbins = nbins + 2*nextrabins
+
+    bins = mins + steps/2  + np.array(range(nbins))[:,np.newaxis]*steps[np.newaxis]
+
+    grid = []
+    for dim in xrange(ndim):
+        grid = [copy.deepcopy(grid) for idx in xrange(nbins)]
+
+    idxs = np.floor((data-mins)/steps[np.newaxis]).astype(int)
+
+    for num, line in enumerate(idxs):
+        bin = grid[line[0]]
+        if ndim > 1:
+            for idx in line[1:]:
+                bin = bin[idx]
+        bin.append(num)
+
+    return bins, grid
+
+
+def do_grid_optimized(data, nnebins, nbins_min, nbins_max, niters=10, nextrabins=0):
+    """
+    Performs multi-dimensional histogram (grid containing the indices of each data instead of the local density)
+    data should be an array whose columns correspond to the several dimensions, the grid is construct in such
+    a way that the number of empty bins is closed to nnebins
+    """
+
+    # look for the number of non empty bins using "nbins_min" bins
+    bins, grid = do_grid(data, nbins_min, nextrabins=nextrabins) 
+    nnebins_min = len([bin for idxs, bin in nonempty_bins(grid)])
+    if nnebins <= nnebins_min:
+        return bins, grid
+
+    # look for the number of non empty bins using "nbins_max" bins
+    bins, grid = do_grid(data, nbins_max, nextrabins=nextrabins)
+    nnebins_max = len([bin for idxs, bin in nonempty_bins(grid)])
+    if nnebins >= nnebins_max:
+        return bins, grid
+
+    for idx in xrange(niters):
+        nbins_test = (nbins_min + nbins_max)/2
+        bins, grid = do_grid(data, nbins_test, nextrabins=nextrabins)
+        nnebins_test = len([bin for idxs, bin in nonempty_bins(grid)])
+        if nbins_test in [nbins_min, nbins_max]:
+            break
+        elif nnebins_test < nnebins:
+            nbins_min = nbins_test
+        elif nnebins_test > nnebins:
+            nbins_max = nbins_test
+        else:
+            break
+
+    return bins, grid
+
+def compute_free_energy(grid, ndim, weights, cutoff, kT):
+    """
+    Give the free energy grid from a grid computed using do_grid function
+    """
+
+    # get number of bins
+    nbins = len(grid)
+
+    free_energy_grid = np.zeros((nbins,)*ndim)
+    free_energy_grid.fill(np.nan)
+
+    for idxs, bin in nonempty_bins(grid):
+        weight = 0
+        for grid_idx in bin:
+            weight += weights[grid_idx]
+        free_energy_grid[[np.array(idx) for idx in idxs]] = -kT*np.log(weight)
+
+    # give values to all nan's
+    free_energy_grid[np.isnan(free_energy_grid)] = np.nanmax(free_energy_grid) + 0.1
+
+    # smooth the data
+    #free_energy_grid = ndimage.uniform_filter(free_energy_grid, size=2)
+    if ndim == 2:
+        free_energy_grid = smooth2a(free_energy_grid, 1, 1)
+
+    # rescale so that the maximum value is 0
+    free_energy_grid -= np.max(free_energy_grid)
+
+    # rescale if the minimum is < than - cutoff
+    min_free_energy_grid = np.min(free_energy_grid)
+    if min_free_energy_grid < -cutoff :
+        free_energy_grid += -min_free_energy_grid - cutoff
+        free_energy_grid[free_energy_grid>0.0] = 0.0
+
+    free_energy_grid = np.copy(free_energy_grid) # without this line it fails
+    free_energy_grid[free_energy_grid>-1e-6] = 0.0 # some free energy values can be very small because of the filter
+
+    return free_energy_grid
+
+
+def nonempty_bins(grid):
+    if not grid:
+        pass
+    elif isinstance(grid[0], list):
+        for idx, value in enumerate(grid):
+            for subidxs, subvalue in nonempty_bins(value):
+                subidxs = [idx] + subidxs 
+                yield subidxs, subvalue
+    else: 
+        yield [], grid
+
+
+def pick_points_from_grid(grid, npoints):
+    """
+    Uniformly select "npoints" indices from a grid generated using do_grid function
+    """
+
+    idxs_picked_points = []
+
+    # construct list with nonempty bins to save time when drawing if many bins are empty
+    nebins = []
+
+    for idxs, bin in nonempty_bins(grid):
+        nebins.append(bin)
+
+    nsamples = sum(len(bin) for bin in nebins) 
+    if npoints > nsamples:
+        raise ValueError("Too few samples in the grid to select %i of them, %i samples detected" %(npoints, nsamples))
+
+    npicked = 0
     while npicked < npoints:
-        which_bin = random.choice(nonempty_bins)
-        point = random.choice(hist_idxs[which_bin[0]][which_bin[1]])
-        if point not in drawn_points:
-            drawn_points.append(point)
-            npicked += 1
+        idx_point = random.choice(random.choice(nebins))
+        if idx_point not in idxs_picked_points:
+            idxs_picked_points.append(idx_point)
+            npicked = npicked + 1
 
-    return drawn_points
+    return idxs_picked_points
 
-def pick_points_2D_optimized(x, y, npoints, idxs_preselect=None):
+
+def pick_points_optimized(data, npoints, idxs_preselect=None):
+    """
+    Select "npoints" points from data so as to maximize the euclidean distance between them 
+    """
 
     if idxs_preselect is None:
-        nsample = x.shape[0]
-        idxs_preselect = range(nsample)
+        nsamples = data.shape[0]
+        idxs_preselect = range(nsamples)
     else:
-        nsample = len(idxs_preselect)
+        nsamples = len(idxs_preselect)
+
+    if len(data.shape) == 1:
+        ndim = 1
+        data = data[:,np.newaxis]
+    else:
+        ndim = data.shape[1]
+
     idxs_picked_points = []
-    random_index = random.randrange(0, nsample)
+    random_index = random.randrange(0, nsamples)
     idxs_picked_points.append(idxs_preselect.pop(random_index))
     for count in xrange(npoints-1):
         max_min_r = 0.
         for i, idx in enumerate(idxs_preselect):
             min_r = 1.e100
-            for jdx in idxs_picked_points:
-                r = (x[idx] - x[jdx])**2 + (y[idx] - y[jdx])**2
+            for kdx in idxs_picked_points:
+                r = 0
+                for jdx in range(ndim):
+                    r += (data[idx,jdx] - data[kdx,jdx])**2
                 min_r = min(r, min_r)
             if min_r >= max_min_r:
                 max_min_r = min_r
@@ -183,58 +232,3 @@ def pick_points_2D_optimized(x, y, npoints, idxs_preselect=None):
         idxs_picked_points.append(new_idx)
 
     return idxs_picked_points
-
-### does not handle empty bins at the borders
-#def draw_points_hist2D_test(hist, nbins, npoints, sampling='uniform', border_frac=0.0):
-#
-#    drawn_points = []
-#
-#    if border_frac > 0.0:
-#        nborder = int(border_frac*npoints)
-#        borders = hist[0] + hist[-1] + [hist[idx][0] for idx in range(1,nbins-1)] + [hist[idx][-1] for idx in range(1,nbins-1)]
-#        # keep only non empty bins
-#        borders = [bin for bin in borders if bin]
-#
-#        npoints_borders = 0
-#        for bin in borders:
-#            npoints_borders += len(bin)
-#
-#        print npoints_borders, nborder
-#
-#        if npoints_borders <= nborder:
-#            drawn_points = [point for bin in borders for point in bin]
-#            npicked = npoints_borders
-#        else:
-#            npicked = 0
-#            drawn_points = []
-#            while npicked < nborder:
-#                point = random.choice(random.choice(borders))
-#                if point not in drawn_points:
-#                    drawn_points.append(point)
-#                    npicked = npicked + 1
-#    else:
-#        nborder = 0
-#        npicked = 0
-#
-#    # construct list with nonempty bins to save time when drawing if many bins are empty
-#    nonempty_bins = [bin for line in hist for bin in line if bin]
-#
-#    # draw remaining points uniformly
-#    while npicked < npoints:
-#        point = random.choice(random.choice(nonempty_bins))
-#        if point not in drawn_points:
-#            drawn_points.append(point)
-#            npicked = npicked + 1
-#
-#    return drawn_points
-
-
-#def draw_idxs(hist, nbins):
-#   ind1 = random.randrange(nbins)
-#   ind2 = random.randrange(nbins)
-#
-#   while not hist[ind1][ind2]:
-#       ind1 = random.randrange(nbins)
-#       ind2 = random.randrange(nbins)
-#
-#   return ind1, ind2

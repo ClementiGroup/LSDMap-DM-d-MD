@@ -142,12 +142,10 @@ class RbfFit(object):
         U, s, V = np.linalg.svd(kernel_matrix)
         sinv = 1/s
         # filter noisy singular values values
-        sinv[s<0.01*np.max(s)] = 0
+        sinv[s<0.02*np.max(s)] = 0
         inverse_kernel_matrix = np.dot(np.dot(V.T, np.diag(sinv)), U.T)
         weights = np.dot(inverse_kernel_matrix, self.values)
         logging.info("kernel matrix inverted")
-
-        np.savetxt("matrix.fit",kernel_matrix)
 
         return weights
 
@@ -165,22 +163,27 @@ class RbfExe(object):
         self.config = config
         self.args = args
 
-        struct_file = reader.open(args.struct_file)
-        self.struct_filename = struct_file.filename
-        self.npoints = struct_file.nlines
+        # load configurations
+        format_struct_file = os.path.splitext(args.struct_file[0])[1]
+	if format_struct_file == '.gro': # use lsdmap reader
+            struct_file = reader.open(args.struct_file)
+            self.npoints = struct_file.nlines
 
-        self.idxs_thread = p_index.get_idxs_thread(comm, self.npoints)
-
-        if hasattr(struct_file, '_skip'): # multi-thread reading
-            coords_thread = struct_file.readlines(self.idxs_thread)
+            idxs_thread = p_index.get_idxs_thread(comm, self.npoints)
+            coords_thread = struct_file.readlines(idxs_thread)
             self.coords = np.vstack(comm.allgather(coords_thread))
-        else: # serial reading
+        else: # use numpy
             rank = comm.Get_rank()
             if rank == 0:
-                self.coords = struct_file.readlines()
+                coords = np.loadtxt(args.struct_file[0])
+                if len(coords.shape)==0:
+                    self.coords = coords[:, np.newaxis, np.newaxis] 
+                else:
+                    self.coords = coords[:, :, np.newaxis]
             else:
                 self.coords = None
             self.coords = comm.bcast(self.coords, root=0)
+            self.npoints = self.coords.shape[0]
         logging.info('input coordinates loaded')
 
         # load file of values
@@ -196,7 +199,6 @@ class RbfExe(object):
                 raise ValueError('file of values should contain a single column')
 
         self.initialize_metric()
-
         self.function = config.get(self.args.section,'function')
 
         self.status_sigma = config.get(self.args.section,'status')

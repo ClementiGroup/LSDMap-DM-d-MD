@@ -27,9 +27,10 @@ def startPilot(settings):
     print "Session UID: {0} ".format(session.uid)
 
     # Add an ssh identity to the sessoion
-    cred = radical.pilot.Context('ssh')
-    cred.user_id = settings.uname
-    session.add_context(cred)
+    if settings.remote_host != "localhost":
+        cred = radical.pilot.Context('ssh')
+        cred.user_id = settings.uname
+        session.add_context(cred)
 
     # Add a Pilot Manager. Pilot managers manage one or more ComputePilots.
     pmgr = radical.pilot.PilotManager(session=session)
@@ -42,7 +43,10 @@ def startPilot(settings):
     pdesc.resource = settings.remote_host
     pdesc.runtime = settings.runtime
     pdesc.cores = settings.cores
-    pdesc.queue = settings.queue
+    if settings.sandbox:
+        pdesc.sandbox = settings.sandbox
+    if settings.remote_host != "localhost":
+        pdesc.queue = settings.queue
     pdesc.project = settings.allocation
 
     # Launch the pilot.
