@@ -279,8 +279,8 @@ rm -f $tmpstartgro
         logging.info("restarting from iteration %i" %num_iter)
         # remove iter folders with iter number >= num_iter
         os.system('for dir in iter*; do num=`cut -d "r" -f 2 <<< $dir`; if [ "$num" -ge %i ]; then rm -rf $dir; fi ; done'%num_iter)
-        os.system('cp iter%i/output.gro input.gro')
-        os.system('rm -rf ' + ' '.join(['lsdmap', 'fit', 'fedir']))
+        os.system('cp iter%i/output.gro input.gro'%(num_iter-1))
+        os.system('rm -rf ' + ' '.join(['lsdmap', 'fit', 'fe']))
         os.system('cp -r iter%i/{'%(num_iter-1) + ','.join(['lsdmap', 'fit', 'fe']) + '} .')
 
         # update iter in settings file

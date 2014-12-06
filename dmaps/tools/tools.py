@@ -13,7 +13,6 @@ def smooth2a(arrayin, nr, nc):
     # columns.  You end up replacing element "i" by the mean of a (2*Nr+1)-by- 
     # (2*Nc+1) rectangle centered on element "i".
 
-
     row = arrayin.shape[0]
     col = arrayin.shape[1]
 
@@ -42,11 +41,11 @@ def smooth2a(arrayin, nr, nc):
     return arrayout
 
 
-def do_grid(data, nbins, nextrabins=0):
+def do_grid(data, nbins, mins=None, maxs=None, nextrabins=0):
     """
     Performs multi-dimensional histogram (grid containing the indices of each data instead of the local density)
         data should be an array whose columns correspond to the several dimensions
-"""
+    """
 
     npoints = data.shape[0] 
     if len(data.shape) == 1:
@@ -55,14 +54,21 @@ def do_grid(data, nbins, nextrabins=0):
     else:
         ndim = data.shape[1]
 
-
     window = 1e-8 # normally the window should depend on the data
-    mins = np.amin(data, axis=0) - window
-    maxs = np.amax(data, axis=0) + window
-    steps = (maxs - mins)/nbins
 
-    mins = mins - nextrabins*steps
-    nbins = nbins + 2*nextrabins
+    if mins is None or maxs is None:
+        if mins is None and maxs is None:
+            mins = np.amin(data, axis=0) - window
+            maxs = np.amax(data, axis=0) + window
+            steps = (maxs - mins)/nbins
+            mins = mins - nextrabins*steps
+            nbins = nbins + 2*nextrabins
+        else:
+            raise ValueError('mins and maxs should be both NaN or not NaN!')
+    else:
+        if nextrabins != 0:
+            raise ValueError('nextrabins should set be to 0 when using mins option')
+        steps = (maxs - mins)/nbins
 
     bins = mins + steps/2  + np.array(range(nbins))[:,np.newaxis]*steps[np.newaxis]
 
@@ -124,7 +130,7 @@ def compute_free_energy(grid, ndim, weights, cutoff, kT):
     # get number of bins
     nbins = len(grid)
 
-    free_energy_grid = np.zeros((nbins,)*ndim)
+    free_energy_grid = np.zeros((nbins,)*ndim, dtype='float')
     free_energy_grid.fill(np.nan)
 
     for idxs, bin in nonempty_bins(grid):
@@ -133,26 +139,22 @@ def compute_free_energy(grid, ndim, weights, cutoff, kT):
             weight += weights[grid_idx]
         free_energy_grid[[np.array(idx) for idx in idxs]] = -kT*np.log(weight)
 
-    # give values to all nan's
-    free_energy_grid[np.isnan(free_energy_grid)] = np.nanmax(free_energy_grid) + 0.1
-
     # smooth the data
     if ndim == 2:
-        free_energy_grid = smooth2a(free_energy_grid, 1, 1)
-    elif ndim > 2:
-        free_energy_grid = ndimage.uniform_filter(free_energy_grid, size=2)
+        free_energy_grid = smooth2a(free_energy_grid, 2, 2)
+    #elif ndim > 2:
+    #    free_energy_grid = ndimage.uniform_filter(free_energy_grid, size=2)
 
     # rescale so that the maximum value is 0
-    free_energy_grid -= np.max(free_energy_grid)
+    free_energy_grid -= np.nanmax(free_energy_grid)
 
     # rescale if the minimum is < than - cutoff
-    min_free_energy_grid = np.min(free_energy_grid)
+    min_free_energy_grid = np.nanmin(free_energy_grid)
     if min_free_energy_grid < -cutoff :
-        free_energy_grid += -min_free_energy_grid - cutoff
-        free_energy_grid[free_energy_grid>0.0] = 0.0
+        free_energy_grid -= min_free_energy_grid + cutoff
+        free_energy_grid[free_energy_grid > 0.0] = 0.0
 
     free_energy_grid = np.copy(free_energy_grid) # without this line it fails
-    free_energy_grid[free_energy_grid>-1e-6] = 0.0 # some free energy values can be very small because of the filter
 
     return free_energy_grid
 

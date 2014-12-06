@@ -287,10 +287,10 @@ class DMapSamplingWorker(object):
         weights = np.loadtxt('confall.w')
 
         nvalues = dcs.shape[0]
-        nnebins = int(nvalues**(3./4))
+        nnebins = int(5*nvalues**(1./2))
         nbins_min = int(nvalues**(1./(2*ndcs)))
         nbins_max = int(nvalues**(1./2))
-        bins, grid = tools.do_grid_optimized(dcs, nnebins, nbins_min, nbins_max, nextrabins=1)
+        bins, grid = tools.do_grid_optimized(dcs, nnebins, nbins_min, nbins_max, nextrabins=0)
  
         logging.info("Build free energy histogram with %i nbins along each dimension..."%len(bins))
         free_energy_grid = tools.compute_free_energy(grid, ndcs, weights, cutoff, kT)
@@ -299,16 +299,10 @@ class DMapSamplingWorker(object):
         grads = np.gradient(free_energy_grid,*steps.tolist())
         if ndcs == 1:
             grads = [grads]
+        grads = [np.nan_to_num(grad) for grad in grads]
 
-        # considering only bins where the free energy is non zero
-        #nebins = np.nonzero(free_energy_grid)
-
-        # one may want to include bins where the free energy is zero but not the force
-        nzgrads = (grads[0] != 0.0)
-        if ndcs > 1:
-            for dim in xrange(1,ndcs):
-                nzgrads = np.logical_or(nzgrads, grads[dim] != 0.0)
-        nebins = np.where(nzgrads)
+        # considering only bins where the free energy is defined
+        nebins = np.where(~np.isnan(free_energy_grid))
 
         nbins = bins.shape[0]
         nebins_s = np.sum([nebins[idx]*nbins**(ndcs-idx-1) for idx in xrange(ndcs)], axis=0)

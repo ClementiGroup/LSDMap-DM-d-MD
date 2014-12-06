@@ -84,19 +84,15 @@ import cython
 import numpy as np
 cimport numpy as np
 
-ctypedef fused npfloat:
-    np.float32_t
-    np.float64_t
-
 cdef extern from "math.h":
     double sqrt(double x)
     double fabs(double x)
 
-cdef double InnerProduct(np.ndarray[npfloat,ndim=1] A,
-                 np.ndarray[npfloat,ndim=2] coords1,
-                 np.ndarray[npfloat,ndim=2] coords2,
+cdef double InnerProduct(np.ndarray[np.float64_t,ndim=1] A,
+                 np.ndarray[np.float64_t,ndim=2] coords1,
+                 np.ndarray[np.float64_t,ndim=2] coords2,
                  int N,
-                 np.ndarray[npfloat,ndim=1] weight):
+                 np.ndarray[np.float64_t,ndim=1] weight):
     """
     Calculate the inner product of two structures.
 
@@ -190,7 +186,7 @@ cdef double InnerProduct(np.ndarray[npfloat,ndim=1] A,
 
     return (G1 + G2) * 0.5
 
-cdef double FastCalcRMSDAndRotation(np.ndarray[npfloat,ndim=1] rot, np.ndarray[npfloat,ndim=1] A, double E0, int N):
+cdef double FastCalcRMSDAndRotation(np.ndarray[np.float64_t,ndim=1] rot, np.ndarray[np.float64_t,ndim=1] A, double E0, int N):
     """
     Calculate the RMSD, and/or the optimal rotation matrix.
 
@@ -216,7 +212,7 @@ cdef double FastCalcRMSDAndRotation(np.ndarray[npfloat,ndim=1] rot, np.ndarray[n
     cdef double SxzpSzx, SyzpSzy, SxypSyx, SyzmSzy,
     cdef double SxzmSzx, SxymSyx, SxxpSyy, SxxmSyy
 
-    cdef np.ndarray[npfloat,ndim=1] C = np.zeros(4, dtype=A.dtype)
+    cdef np.ndarray[np.float64_t,ndim=1] C = np.zeros(4, dtype=A.dtype)
     cdef unsigned int i
     cdef double mxEigenV
     cdef double oldg = 0.0
@@ -381,7 +377,7 @@ cdef double FastCalcRMSDAndRotation(np.ndarray[npfloat,ndim=1] rot, np.ndarray[n
 
     return rms
 
-cdef void CenterCoords(np.ndarray[npfloat,ndim=2] coords, int N, np.ndarray[npfloat,ndim=1] weights):
+cdef void CenterCoords(np.ndarray[np.float64_t,ndim=2] coords, int N, np.ndarray[np.float64_t,ndim=1] weights):
 
     cdef double          xsum, ysum, zsum, wsum
     cdef unsigned int    i
@@ -420,10 +416,10 @@ cdef void CenterCoords(np.ndarray[npfloat,ndim=2] coords, int N, np.ndarray[npfl
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
-def CalcRMSDRotationalMatrix(np.ndarray[npfloat,ndim=2] ref,
-                             np.ndarray[npfloat,ndim=2] conf,
-                             np.ndarray[npfloat,ndim=1] rot,
-                             np.ndarray[npfloat,ndim=1] weights):
+def CalcRMSDRotationalMatrix(np.ndarray[np.float64_t,ndim=2] ref,
+                             np.ndarray[np.float64_t,ndim=2] conf,
+                             np.ndarray[np.float64_t,ndim=1] rot,
+                             np.ndarray[np.float64_t,ndim=1] weights):
     """
     Calculate the RMSD & rotational matrix.
 
@@ -443,7 +439,7 @@ def CalcRMSDRotationalMatrix(np.ndarray[npfloat,ndim=2] ref,
     cdef double rmsd
     cdef int N = conf.shape[1]
     cdef double E0
-    cdef np.ndarray[npfloat,ndim=1] A = np.zeros(9, dtype=ref.dtype)
+    cdef np.ndarray[np.float64_t,ndim=1] A = np.zeros(9, dtype=ref.dtype)
  
     CenterCoords(ref, N, weights)
     CenterCoords(conf, N, weights)
@@ -456,10 +452,10 @@ def CalcRMSDRotationalMatrix(np.ndarray[npfloat,ndim=2] ref,
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
-def CalcRMSDGradient(np.ndarray[npfloat,ndim=2] ref,
-                     np.ndarray[npfloat,ndim=2] conf,
-                     np.ndarray[npfloat,ndim=2] grad,
-                     np.ndarray[npfloat,ndim=1] weights):
+def CalcRMSDGradient(np.ndarray[np.float64_t,ndim=2] ref,
+                     np.ndarray[np.float64_t,ndim=2] conf,
+                     np.ndarray[np.float64_t,ndim=2] grad,
+                     np.ndarray[np.float64_t,ndim=1] weights):
 
     """
     Calculate the RMSD, rotational matrix, and gradient.
@@ -477,18 +473,18 @@ def CalcRMSDGradient(np.ndarray[npfloat,ndim=2] ref,
             :Returns:
                    - RMSD value
 
-    .. Note:: All arrays *must* be of type `numpy.float32` or `numpy.float64`.
+    .. Note:: All arrays *must* be of type `numpy.float64`.
     """
 
     cdef double rmsd
     cdef int N = conf.shape[1]
     cdef unsigned int i, j, k, l
     cdef float rotconf
-    cdef np.ndarray[npfloat,ndim=1] rot = np.zeros(9, dtype=ref.dtype)
+    cdef np.ndarray[np.float64_t,ndim=1] rot = np.zeros(9, dtype=ref.dtype)
 
     # the following lines are here to show how to apply the rotational matrix in order to recover the right RMSD
     #cdef double trmsd = 0.0
-    #cdef np.ndarray[npfloat,ndim=1] trot = np.zeros(3, dtype=ref.dtype)
+    #cdef np.ndarray[np.float64_t,ndim=1] trot = np.zeros(3, dtype=ref.dtype)
 
     #rmsd = CalcRMSDRotationalMatrix(ref, conf, rot, weights)
 
@@ -502,7 +498,6 @@ def CalcRMSDGradient(np.ndarray[npfloat,ndim=2] ref,
     #print rmsd, trmsd
 
     # compute gradient
-
     rmsd = CalcRMSDRotationalMatrix(ref, conf, rot, weights)
 
     for k in xrange(N):

@@ -11,7 +11,7 @@ from distutils.sysconfig import get_python_lib
 min_numpy_version = '1.4.1'
 min_scipy_version = '0.10.0'
 min_mpi4py_version = '1.0'
-min_cython_version = '0.21'
+min_cython_version = '0.20'
 
 # Some functions for showing errors and warnings.
 def _print_admonition(kind, head, body):
@@ -101,9 +101,21 @@ ext_modules = [Extension(
     extra_compile_args=["-O3","-ffast-math"],
     ), Extension(
     name='dmaps/kernel/libdms',
-    sources=["dmaps/kernel/wrapper_md.{}".format('pyx' if use_cython else 'c')],
+    sources=["dmaps/kernel/bias.{}".format('pyx' if use_cython else 'c')],
     libraries=['python2.' + str(sys.version_info[1]), 'util'],
     library_dirs=[sys.prefix + '/' + 'lib'],
+    include_dirs=[numpy_include],
+    extra_compile_args=["-O3","-ffast-math"],
+    ),
+    Extension(
+    name='dmaps/tools/voronoi',
+    sources=["dmaps/tools/voronoi.{}".format('pyx' if use_cython else 'c')],
+    include_dirs=[numpy_include],
+    extra_compile_args=["-O3","-ffast-math"],
+    ),
+    Extension(
+    name='dmaps/tools/rbf',
+    sources=["dmaps/tools/rbf.{}".format('pyx' if use_cython else 'c')],
     include_dirs=[numpy_include],
     extra_compile_args=["-O3","-ffast-math"],
     )]
@@ -116,4 +128,5 @@ setup(name='lsdmap',
       license='LICENSE.txt',
       description='LSDMap package',
       long_description=open('README.md').read(),
+      #data_files=[(get_python_lib()+'/dmaps/kernel', ['dmaps/kernel/run.sh'])]
      )
