@@ -1,7 +1,5 @@
 from math import floor
-import numpy as np
 import itertools as it
-
 import numpy as np
 cimport numpy as np
 
@@ -53,7 +51,6 @@ cdef int local_fe_fit_voronoi(double* fit_value, double* fit_gradient, double* d
 cdef int get_fe_neighbors(double* data, int ndim, np.ndarray[np.float64_t,ndim=2] neighbors, np.ndarray[np.float64_t,ndim=1] fe_neighbors, int nneighbors_per_dim, FEHist *feh):
 
     cdef int idx, jdx, kdx, index_s
-    cdef double bin_idx
     cdef int nneighbors
 
     nneighbors = nneighbors_per_dim**ndim

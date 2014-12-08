@@ -78,50 +78,42 @@ except AttributeError:
     numpy_include = numpy.get_numpy_include()
 
 # Handle cython modules
-try:
-    from Cython.Distutils import build_ext
-    from Cython.Build import cythonize
-    use_cython = True
-    cmdclass = {'build_ext': build_ext}
-except ImportError:
-    use_cython = False
-    cmdclass = {}
-finally:
-    print 'use_cython: {}'.format(use_cython)
+from Cython.Distutils import build_ext
+from Cython.Build import cythonize
+cmdclass = {'build_ext': build_ext}
 
 ext_modules = [Extension(
     name='lsdmap/util/pyqcprot',
-    sources=["lsdmap/util/pyqcprot.{}".format('pyx' if use_cython else 'c')],
+    sources=["lsdmap/util/pyqcprot.pyx"],
     include_dirs=[numpy_include],
     extra_compile_args=["-O3","-ffast-math"],
     ), Extension(
     name='lsdmap/util/util',
-    sources=["lsdmap/util/util.{}".format('pyx' if use_cython else 'c')],
+    sources=["lsdmap/util/util.pyx"],
     include_dirs=[numpy_include],
     extra_compile_args=["-O3","-ffast-math"],
     ), Extension(
     name='dmaps/kernel/libdms',
-    sources=["dmaps/kernel/bias.{}".format('pyx' if use_cython else 'c')],
+    sources=["dmaps/kernel/bias.pyx"],
     libraries=['python2.' + str(sys.version_info[1]), 'util'],
     library_dirs=[sys.prefix + '/' + 'lib'],
     include_dirs=[numpy_include],
     extra_compile_args=["-O3","-ffast-math"],
-    ),
-    Extension(
+    ), Extension(
+    name='dmaps/ctram/ctramfe',
+    sources=["dmaps/ctram/ctramfe.pyx"],
+    include_dirs=[numpy_include],
+    extra_compile_args=["-O3","-ffast-math"],
+    ), Extension(
     name='dmaps/tools/voronoi',
-    sources=["dmaps/tools/voronoi.{}".format('pyx' if use_cython else 'c')],
+    sources=["dmaps/tools/voronoi.pyx"],
     include_dirs=[numpy_include],
     extra_compile_args=["-O3","-ffast-math"],
     ),
-    Extension(
-    name='dmaps/tools/rbf',
-    sources=["dmaps/tools/rbf.{}".format('pyx' if use_cython else 'c')],
-    include_dirs=[numpy_include],
-    extra_compile_args=["-O3","-ffast-math"],
-    )]
+    ]
 
 setup(name='lsdmap',
-      packages=['lsdmap', 'lsdmap.mpi', 'lsdmap.rw', 'lsdmap.util', 'lsdmap.rbf', 'dmdmd', 'dmdmd.tools', 'dmaps', 'dmaps.kernel', 'dmaps.tools'],
+      packages=['lsdmap', 'lsdmap.mpi', 'lsdmap.rw', 'lsdmap.util', 'lsdmap.rbf', 'dmdmd', 'dmdmd.tools', 'dmaps', 'dmaps.kernel', 'dmaps.tools', 'dmaps.ctram'],
       scripts = ['bin/lsdmap','bin/dmdmd', 'bin/dmaps', 'bin/rbffit','bin/reweighting','bin/selection','bin/p_mdrun'],
       ext_modules = cythonize(ext_modules),
       cmdclass = cmdclass,

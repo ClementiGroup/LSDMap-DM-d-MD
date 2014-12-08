@@ -271,7 +271,7 @@ rm -f $tmpstartgro
         autocorrdir = 'autocorr'
         os.system('rm -rf autocorr; mkdir autocorr')
 
-        np.savetxt('autocorr/autocorr.dat', np.hstack((step[:,np.newaxis], autocorrelation_dcs)), fmt='%15.7e')
+        np.savetxt('autocorr/autocorr.dat', np.hstack((step[:,np.newaxis], autocorrelation_dcs)), fmt='%.18e')
 
 
     def restart_from_iter(self, num_iter, args):

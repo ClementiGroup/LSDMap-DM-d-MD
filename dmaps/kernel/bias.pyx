@@ -1,13 +1,11 @@
 import ConfigParser
 from math import floor
 import itertools as it
-
 import numpy as np
 cimport numpy as np
 
 from libc.stdlib cimport malloc
 from libc.string cimport strcpy
-from cpython cimport PyObject, Py_INCREF
 
 from lsdmap.rw import reader, writer
 from lsdmap.util import pyqcprot
@@ -31,6 +29,7 @@ cdef check_parameter(value_found, value, prmname, filename):
     if value_found != value:
         raise IOError("file " + filename + " " + "should contain %i "%value  + tag  + " according to .ini file (" + \
 name + " " + "in section " + section + "), %i detected"%value_found)
+
 
 cdef public DMSConfig* initDMSConfig(const char* file):
 
@@ -158,7 +157,6 @@ cdef public Fit* initFit(DMSConfig *dmsc, const char* file):
 
         # allocate memory for the coordinates used for the fit
         ft.coords = <double *>malloc(ft.npoints*3*natoms*sizeof(double))
-
         # allocate memory for the weights used for the fit
         ft.weights = <double *>malloc(ft.npoints*dmsc.ndcs*sizeof(double))
         # allocate memory for the values of sigma used for the fit
@@ -254,7 +252,7 @@ cdef public int do_biased_force(BiasedMD *bs, DMSConfig *dmsc, Fit *ft, FEHist *
     nsavedcs = max(int(floor(nsave*0.1)), 1)
     if bs.step%nsavedcs == 0 and bs.step > 0 and dmsc.isfirst == 0:
         with open('autocorr.ev', 'a') as evfile:
-            print >> evfile, ' '.join(['%15.7e' % (bs.dcs[idx],) for idx in xrange(dmsc.ndcs)])
+            print >> evfile, ' '.join(['%.18e' % (bs.dcs[idx],) for idx in xrange(dmsc.ndcs)])
 
     # compute biased force if not first iteration
     if dmsc.isfirst == 0:
@@ -374,10 +372,10 @@ cdef int save_data(np.ndarray[np.float64_t,ndim=2] coord, BiasedMD *bs, DMSConfi
     w.write(coord, 'confall.gro', mode='a')
 
     with open('confall.w', 'a') as wfile:
-        print >> wfile, '%15.7e' %(exp(bs.vbias/dmsc.kT))
+        print >> wfile, '%.18e' %(exp(bs.vbias/dmsc.kT))
 
     if dmsc.isfirst == 0:
         with open('confall.ev', 'a') as evfile:
-            print >> evfile, ' '.join(['%15.7e' % (bs.dcs[idx],) for idx in xrange(dmsc.ndcs)])
+            print >> evfile, ' '.join(['%.18e' % (bs.dcs[idx],) for idx in xrange(dmsc.ndcs)])
     return 0
 

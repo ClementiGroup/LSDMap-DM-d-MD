@@ -206,7 +206,7 @@ class LSDMap(object):
 
         path, ext = os.path.splitext(struct_filename)
         np.savetxt(path + '.eg', np.fliplr(self.eigs[np.newaxis]), fmt='%9.6f')
-        np.savetxt(path + '.ev', np.fliplr(self.evs), fmt='%15.7e')
+        np.savetxt(path + '.ev', np.fliplr(self.evs), fmt='%.18e')
 
         if args.output_file is None:
             try:

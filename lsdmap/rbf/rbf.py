@@ -371,10 +371,10 @@ class RbfExe(object):
 
         if rank == 0:
             wfile = "fit.w"
-            np.savetxt(wfile, weights.T, fmt='%13.6e')
+            np.savetxt(wfile, weights.T, fmt='%.18e')
 
             sigfile = "fit.sig"
-            np.savetxt(sigfile, sigma.T, fmt='%9.6e')
+            np.savetxt(sigfile, sigma.T, fmt='%.18e')
 
             if args.embed_file is not None:
-                np.savetxt("fit.embed", values_embed.T, fmt='%13.6e')
+                np.savetxt("fit.embed", values_embed.T, fmt='%.18e')

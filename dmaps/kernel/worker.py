@@ -156,7 +156,7 @@ class DMapSamplingWorker(object):
         gw = writer.open('.gro', pattern=settings.startgro)
         gw.write(self.coords_lsdmap, 'lsdmap/lsdmap_aa.gro')
         logging.info('Write weights in lsdmap/lsdmap.w')
-        np.savetxt('lsdmap/lsdmap.w', self.weights_lsdmap, fmt='%15.7e')
+        np.savetxt('lsdmap/lsdmap.w', self.weights_lsdmap, fmt='%.18e')
 
         logging.info('Create file containing only heavy atoms')
         os.system('cd lsdmap; echo 2 | trjconv -f lsdmap_aa.gro -s lsdmap_aa.gro -o lsdmap.gro &>/dev/null; cd ..')
@@ -240,7 +240,7 @@ class DMapSamplingWorker(object):
         logging.info('Write DCs in fit/fit.ev')
 
         # write ev file used for the fit
-        np.savetxt('fit/fit.ev', np.hstack((np.ones((nfit,1)), dcs_fit)), fmt='%15.7e')
+        np.savetxt('fit/fit.ev', np.hstack((np.ones((nfit,1)), dcs_fit)), fmt='%.18e')
 
         os.system('echo 2 | trjconv -f confall.gro -s confall.gro -o fit/embed.gro &>/dev/null')
 
@@ -309,9 +309,9 @@ class DMapSamplingWorker(object):
 
         logging.info("Save free energy histogram")
         np.savetxt('fe/hist.dat', np.vstack(nebins + (np.array(nebins_s), free_energy_grid[nebins],) + tuple([grads[idx][nebins] for idx in range(ndcs)])).T,
-                   fmt=" ".join(["%6.1i" for idx in range(ndcs)]) + " " + "%10.1i %15.7e " + " ".join(["%15.7e" for idx in range(ndcs)]))
+                   fmt=" ".join(["%6.1i" for idx in range(ndcs)]) + " " + "%10.1i %.18e " + " ".join(["%.18e" for idx in range(ndcs)]))
 
-        np.savetxt('fe/bins.xyz', bins, fmt='%15.7e')
+        np.savetxt('fe/bins.xyz', bins, fmt='%.18e')
 
         logging.info("Pick new configurations for the next iteration.")
         npreselect = min(dcs.shape[0], 500)
@@ -331,4 +331,4 @@ class DMapSamplingWorker(object):
         gw.write(new_coords, 'output.gro')
 
         # save dcs of new points (check)
-        np.savetxt('output.ev', dcs[idxs_new_coords], fmt='%15.7e')
+        np.savetxt('output.ev', dcs[idxs_new_coords], fmt='%.18e')

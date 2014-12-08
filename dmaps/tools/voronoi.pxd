@@ -1,5 +1,5 @@
-cimport numpy as np
 from dmaps.kernel.bias cimport FEHist
+cimport numpy as np
 
 cdef extern from "math.h":
     double sqrt(double x)
