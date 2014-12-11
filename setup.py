@@ -109,8 +109,12 @@ ext_modules = [Extension(
     sources=["dmaps/tools/voronoi.pyx"],
     include_dirs=[numpy_include],
     extra_compile_args=["-O3","-ffast-math"],
-    ),
-    ]
+    ), Extension(
+    name='dmaps/tools/rbf',
+    sources=["dmaps/tools/rbf.pyx"],
+    include_dirs=[numpy_include],
+    extra_compile_args=["-O3","-ffast-math"],
+    )]
 
 setup(name='lsdmap',
       packages=['lsdmap', 'lsdmap.mpi', 'lsdmap.rw', 'lsdmap.util', 'lsdmap.rbf', 'dmdmd', 'dmdmd.tools', 'dmaps', 'dmaps.kernel', 'dmaps.tools', 'dmaps.ctram'],
