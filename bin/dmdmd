@@ -96,15 +96,15 @@ for i in `seq 1 $niters` ; do
 
   # 4) reweighting step
   echo "(4) Update Boltzmann weights"
-  if [[ -f $wfile ]]; then cp $wfile backup.w; fi
+  if [ $(($iter + $i)) > 0 ]; then cp $wfile backup.w; fi
   eval reweighting -c tmp.gro -n tmp.nn -s ncopies.nc -w $wfile -o out.gro $reweighting_options
   echo
 
   mv out.gro $ingro
 
   if [ $((($iter + $i) % $nsave)) == 0 ]; then
-    cp tmpha.gro results/iter$((iter + $i)).gro 
-    if [[ -f $wfile ]]; then cp backup.w results/iter$((iter + $i)).w; fi
+    cp tmpha.gro results/iter$((iter + $i)).gro
+    if [ $(($iter + $i)) > 0 ]; then cp backup.w results/iter$((iter + $i)).w; fi
   fi
 
   sed -i 's/iter=.*/iter='"$(($iter + $i))"'/g' $prmfile
