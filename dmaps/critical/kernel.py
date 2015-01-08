@@ -5,10 +5,12 @@ import time
 import logging
 import random
 import numpy as np
+from math import sqrt, floor
 
 import radical.pilot
 from dmaps.tools import tools
 from dmaps.tools.config import known_pre_exec
+from dmaps.ctram import kernel as ctramk
 from lsdmap.rw import reader
 from lsdmap.rw import writer
 
@@ -122,7 +124,11 @@ class DMapSamplingWorker(object):
             end_times.append(unit.stop_time)
         print 'Simulation Execution Time : ', (max(end_times) - min(start_times)).total_seconds()
 
-    def do_preprocessing_lsdmap(self, settings, npoints, nlsdmap, nbins):
+    def do_preprocessing_lsdmap(self, settings, config):
+
+        npoints = config.npoints
+        nlsdmap = config.nlsdmap
+        nbins= int(sqrt(nlsdmap))
 
         logging.info('Load configurations in confall.gro')
         # read .gro file containing the configurations
@@ -161,8 +167,9 @@ class DMapSamplingWorker(object):
         logging.info('Create file containing only heavy atoms')
         os.system('cd lsdmap; echo 2 | trjconv -f lsdmap_aa.gro -s lsdmap_aa.gro -o lsdmap.gro &>/dev/null; cd ..')
 
-    def do_postprocessing_lsdmap(self, settings, ndcs):
+    def do_postprocessing_lsdmap(self, settings, config):
 
+        ndcs = config.ndcs
         logging.info('Store DCs computed')
         dcs = np.loadtxt('lsdmap/lsdmap.ev')
         if ndcs == 1:
@@ -170,13 +177,13 @@ class DMapSamplingWorker(object):
         else:
             self.dcs_lsdmap = dcs[:,1:ndcs+1]
 
-    def run_lsdmap(self, umgr, settings, npoints, nlsdmap, nbins, ndcs):
+    def run_lsdmap(self, umgr, settings, config):
 
         print 'Starting LSDMap'
         tcpu1 = time.time()
 
         logging.info('Preprocessing LSDMap...')
-        self.do_preprocessing_lsdmap(settings, npoints, nlsdmap, nbins)
+        self.do_preprocessing_lsdmap(settings, config)
         logging.info('LSDMap preprocessing done')
 
         logging.info('Starting LSDMap')
@@ -199,20 +206,23 @@ class DMapSamplingWorker(object):
         tcpu2 = time.time()
 
         logging.info('Postprocessing LSDMap...')
-        self.do_postprocessing_lsdmap(settings, ndcs)
+        self.do_postprocessing_lsdmap(settings, config)
         logging.info('LSDMap postprocessing done')
 
         print 'LSDMap Execution time : ',(unit.stop_time - unit.start_time).total_seconds()
         print 'Total Analysis time : ', tcpu2 - tcpu1
 
-    def do_preprocessing_fit_dcs(self, settings, nfit, nbins):
+    def do_preprocessing_fit(self, settings, config):
 
         dcs_lsdmap = self.dcs_lsdmap
+        nfit = config.nfit
+        nbins= int(sqrt(config.nlsdmap))
 
         logging.info('Select configurations used for the fitting...')
         logging.info('Build histogram')
         bins, grid = tools.do_grid(dcs_lsdmap, nbins)
         logging.info('Select fitting points uniformly along the DCs')
+
         nlsdmap = dcs_lsdmap.shape[0]
         npreselect = min(nlsdmap, 1000)
         if nfit < npreselect:
@@ -236,25 +246,22 @@ class DMapSamplingWorker(object):
 
         logging.info('Create file containing only heavy atoms')
         os.system('cd fit; echo 2 | trjconv -f fit_aa.gro -s fit_aa.gro -o fit.gro &>/dev/null; cd ..')
-
         logging.info('Write DCs in fit/fit.ev')
 
         # write ev file used for the fit
         np.savetxt('fit/fit.ev', np.hstack((np.ones((nfit,1)), dcs_fit)), fmt='%.18e')
-
         os.system('echo 2 | trjconv -f confall.gro -s confall.gro -o fit/embed.gro &>/dev/null')
 
-
-    def run_fit_dcs(self, umgr, settings, nfit, nbins, ndcs):
+    def run_fit(self, umgr, settings, config):
 
         print 'Starting Fitting'
         tcpu1 = time.time()
 
         logging.info("Preprocessing Fitting...")
-        self.do_preprocessing_fit_dcs(settings, nfit, nbins)
+        self.do_preprocessing_fit(settings, config)
         logging.info("Fit preprocessing done")
 
-        dcs_options = '--dc ' + ' '.join([str(num+1) for num in xrange(ndcs)])
+        dcs_options = '--dc ' + ' '.join([str(num+1) for num in xrange(config.ndcs)])
 
         logging.info('Starting Fitting')
         cu = radical.pilot.ComputeUnitDescription()
@@ -263,8 +270,8 @@ class DMapSamplingWorker(object):
         cu.executable = 'rbffit -f ' + settings.inifile + ' -c fit.gro -v fit.ev --embed embed.gro ' + dcs_options
         cu.output_staging = ['fit.w > fit/fit.w', 'fit.sig > fit/fit.sig', 'fit.embed > confall.ev.embed']
         cu.mpi = True
-        cu.cleanup = True
         cu.cores = settings.cores
+        cu.cleanup = True
 
         unit = umgr.submit_units(cu)
         unit.wait()
@@ -275,25 +282,35 @@ class DMapSamplingWorker(object):
         print 'Fitting Execution time : ',(unit.stop_time - unit.start_time).total_seconds()
         print 'Total Analysis time : ', tcpu2 - tcpu1
 
+    def do_free_energy(self, umgr, settings, config):
 
-    def do_free_energy(self, umgr, settings, nbins, cutoff, kT, ndcs):
+        ndcs = config.ndcs
+        cutoff = config.cutoff
+        kT = config.kT
 
-        print 'Starting Free Energy Estimate'
-        os.system('rm -rf fe; mkdir fe')
-
-        dcs = np.loadtxt('confall.ev.embed')
-        if ndcs == 1:
-            dcs = dcs[:,np.newaxis]
-        weights = np.loadtxt('confall.w')
-
-        nvalues = dcs.shape[0]
-        nnebins = int(5*nvalues**(1./2))
-        nbins_min = int(nvalues**(1./(2*ndcs)))
-        nbins_max = int(nvalues**(1./2))
-        bins, grid = tools.do_grid_optimized(dcs, nnebins, nbins_min, nbins_max, nextrabins=0)
+        if config.isctram == 1 and settings.iter > 0:
+            print 'Starting cTRAM procedure'
+            ctramworker = ctramk.CTRAM4DMapS(settings, config) # create ctram worker
+            ctramworker.embed_configurations(umgr, settings) # compute the DC's needed
+            ctramworker.prepare_inputs(config) # prepare input data to use cTRAM (traj_total_mem, N_mem, count_matrices...)
+            ctramworker.do_ctram(config.niters_ctram, config) # do cTRAM
+            bins = ctramworker.bins
+            grid = ctramworker.grid
+            weight = np.exp(ctramworker.log_weight)
+        else:
+            print 'Starting Free Energy Estimate'
+            dcs = np.loadtxt('confall.ev.embed')
+            nvalues = dcs.shape[0]
+            nnebins = int(5*nvalues**(1./2))
+            nbins_min = int(nvalues**(1./(2*ndcs)))
+            nbins_max = int(nvalues**(1./2))
+            bins, grid = tools.do_grid_optimized(dcs, nnebins, nbins_min, nbins_max, nextrabins=0)
+            if ndcs == 1:
+                dcs = dcs[:,np.newaxis]
+            weight = np.loadtxt('confall.w')
  
-        logging.info("Build free energy histogram with %i nbins along each dimension..."%len(bins))
-        free_energy_grid = tools.compute_free_energy(grid, ndcs, weights, cutoff, kT)
+        logging.info("Build free energy histogram with %i nbins along each dimension..."%bins.shape[0])
+        free_energy_grid = tools.compute_free_energy(grid, ndcs, weight, cutoff, kT)
 
         steps = bins[1,:] - bins[0,:]
         grads = np.gradient(free_energy_grid,*steps.tolist())
@@ -303,17 +320,30 @@ class DMapSamplingWorker(object):
 
         # considering only bins where the free energy is defined
         nebins = np.where(~np.isnan(free_energy_grid))
-
         nbins = bins.shape[0]
         nebins_s = np.sum([nebins[idx]*nbins**(ndcs-idx-1) for idx in xrange(ndcs)], axis=0)
 
+        os.system('rm -rf fe; mkdir fe')
         logging.info("Save free energy histogram")
         np.savetxt('fe/hist.dat', np.vstack(nebins + (np.array(nebins_s), free_energy_grid[nebins],) + tuple([grads[idx][nebins] for idx in range(ndcs)])).T,
                    fmt=" ".join(["%6.1i" for idx in range(ndcs)]) + " " + "%10.1i %.18e " + " ".join(["%.18e" for idx in range(ndcs)]))
-
         np.savetxt('fe/bins.xyz', bins, fmt='%.18e')
 
+    def select_new_points(self, settings, config):
+
+        # take only the dcs of the last iteration
+        dcs = np.loadtxt('confall.ev.embed')
+        ndcs = config.ndcs
+        if ndcs == 1:
+            dcs = dcs[:,np.newaxis]
         logging.info("Pick new configurations for the next iteration.")
+
+        nvalues = dcs.shape[0]
+        nnebins = int(5*nvalues**(1./2))
+        nbins_min = int(nvalues**(1./(2*ndcs)))
+        nbins_max = int(nvalues**(1./2))
+        bins, grid = tools.do_grid_optimized(dcs, nnebins, nbins_min, nbins_max, nextrabins=0)
+
         npreselect = min(dcs.shape[0], 500)
         if settings.nreplicas < npreselect:
             # preselection
@@ -322,7 +352,6 @@ class DMapSamplingWorker(object):
             idxs_new_coords = tools.pick_points_optimized(dcs, settings.nreplicas, idxs_preselect=idxs_preselect)
         else:
             idxs_new_coords = tools.pick_points_from_grid(grid, settings.nreplicas)
-
         new_coords = self.coords_all[idxs_new_coords]
 
         logging.info('Save new configurations in output.gro')

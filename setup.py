@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 import sys
 import re
 import textwrap
@@ -28,7 +26,6 @@ def exit_with_error(head, body=''):
 
 def print_warning(head, body=''):
     _print_admonition('warning', head, body)
-
 
 # Check for Python
 if not (sys.version_info[0] >= 2 and sys.version_info[1] >= 6):
@@ -93,8 +90,8 @@ ext_modules = [Extension(
     include_dirs=[numpy_include],
     extra_compile_args=["-O3","-ffast-math"],
     ), Extension(
-    name='dmaps/kernel/libdms',
-    sources=["dmaps/kernel/bias.pyx"],
+    name='dmaps/critical/libdms',
+    sources=["dmaps/critical/bias.pyx"],
     libraries=['python2.' + str(sys.version_info[1]), 'util'],
     library_dirs=[sys.prefix + '/' + 'lib'],
     include_dirs=[numpy_include],
@@ -110,14 +107,14 @@ ext_modules = [Extension(
     include_dirs=[numpy_include],
     extra_compile_args=["-O3","-ffast-math"],
     ), Extension(
-    name='dmaps/tools/rbf',
-    sources=["dmaps/tools/rbf.pyx"],
+    name='dmaps/ctram/wrapper',
+    sources=["dmaps/ctram/wrapper.pyx", "dmaps/ctram/ctram.c"],
     include_dirs=[numpy_include],
     extra_compile_args=["-O3","-ffast-math"],
     )]
 
 setup(name='lsdmap',
-      packages=['lsdmap', 'lsdmap.mpi', 'lsdmap.rw', 'lsdmap.util', 'lsdmap.rbf', 'dmdmd', 'dmdmd.tools', 'dmaps', 'dmaps.kernel', 'dmaps.tools', 'dmaps.ctram'],
+      packages=['lsdmap', 'lsdmap.mpi', 'lsdmap.rw', 'lsdmap.util', 'lsdmap.rbf', 'dmdmd', 'dmdmd.tools', 'dmaps', 'dmaps.critical', 'dmaps.tools', 'dmaps.ctram'],
       scripts = ['bin/lsdmap','bin/dmdmd', 'bin/dmaps', 'bin/rbffit','bin/reweighting','bin/selection','bin/p_mdrun'],
       ext_modules = cythonize(ext_modules),
       cmdclass = cmdclass,

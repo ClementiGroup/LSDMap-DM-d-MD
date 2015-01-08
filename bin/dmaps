@@ -1,5 +1,5 @@
 #!/usr/bin/env python
 
-from dmaps.kernel import dms
+from dmaps.critical import dms
 
-dms.DMapSampling().run()
+dms.DMapSamplingExe().run()

@@ -1,4 +1,4 @@
-from dmaps.kernel.bias cimport FEHist
+from dmaps.critical.bias cimport FEHist
 cimport numpy as np
 
 cdef extern from "math.h":

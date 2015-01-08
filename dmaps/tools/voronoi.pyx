@@ -3,7 +3,7 @@ import itertools as it
 import numpy as np
 cimport numpy as np
 
-from dmaps.kernel.bias cimport FEHist
+from dmaps.critical.bias cimport FEHist
 
 cdef int local_fe_fit_voronoi(double* fit_value, double* fit_gradient, double* data, int ndim, int nneighbors_per_dim, FEHist *feh, double factor_sig):
 
@@ -78,11 +78,15 @@ cdef int get_fe_neighbors(double* data, int ndim, np.ndarray[np.float64_t,ndim=2
         fe_neighbors[idx] = 1.0
         for jdx in xrange(ndim):
             index_s += index_bin[jdx]*feh.nbins**(ndim-jdx-1)
-        for kdx in xrange(feh.nnebins):
-            if index_s == feh.nebins_idxs_s[kdx]:
-                fe_neighbors[idx] = feh.values[kdx]
-                break
-            elif index_s < feh.nebins_idxs_s[kdx]:
-                fe_neighbors[idx] = 1.0
-                break
+        # if the point is outside the grid, the serial number does not apply
+        if any([idx_bin < 0 or idx_bin >= feh.nbins for idx_bin in index_bin]):
+            fe_neighbors[idx] = 1.0
+        else:
+            for kdx in xrange(feh.nnebins):
+                if index_s == feh.nebins_idxs_s[kdx]:
+                    fe_neighbors[idx] = feh.values[kdx]
+                    break
+                elif index_s < feh.nebins_idxs_s[kdx]:
+                    fe_neighbors[idx] = 1.0
+                    break
     return 0

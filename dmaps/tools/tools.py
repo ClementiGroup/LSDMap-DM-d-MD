@@ -54,17 +54,16 @@ def do_grid(data, nbins, mins=None, maxs=None, nextrabins=0):
     else:
         ndim = data.shape[1]
 
-    window = 1e-8 # normally the window should depend on the data
-
     if mins is None or maxs is None:
         if mins is None and maxs is None:
+            window = 1e-8 # normally the window should depend on the data
             mins = np.amin(data, axis=0) - window
             maxs = np.amax(data, axis=0) + window
             steps = (maxs - mins)/nbins
             mins = mins - nextrabins*steps
             nbins = nbins + 2*nextrabins
         else:
-            raise ValueError('mins and maxs should be both NaN or not NaN!')
+            raise ValueError('mins and maxs should be both NaN or non NaN!')
     else:
         if nextrabins != 0:
             raise ValueError('nextrabins should set be to 0 when using mins option')
@@ -87,8 +86,7 @@ def do_grid(data, nbins, mins=None, maxs=None, nextrabins=0):
 
     return bins, grid
 
-
-def do_grid_optimized(data, nnebins, nbins_min, nbins_max, niters=10, nextrabins=0):
+def do_grid_optimized(data, nnebins, nbins_min, nbins_max, mins=None, maxs=None, niters=10, nextrabins=0):
     """
     Performs multi-dimensional histogram (grid containing the indices of each data instead of the local density)
     data should be an array whose columns correspond to the several dimensions, the grid is construct in such
@@ -96,20 +94,20 @@ def do_grid_optimized(data, nnebins, nbins_min, nbins_max, niters=10, nextrabins
     """
 
     # look for the number of non empty bins using "nbins_min" bins
-    bins, grid = do_grid(data, nbins_min, nextrabins=nextrabins) 
+    bins, grid = do_grid(data, nbins_min, mins, maxs, nextrabins=nextrabins) 
     nnebins_min = len([bin for idxs, bin in nonempty_bins(grid)])
     if nnebins <= nnebins_min:
         return bins, grid
 
     # look for the number of non empty bins using "nbins_max" bins
-    bins, grid = do_grid(data, nbins_max, nextrabins=nextrabins)
+    bins, grid = do_grid(data, nbins_max, mins, maxs, nextrabins=nextrabins)
     nnebins_max = len([bin for idxs, bin in nonempty_bins(grid)])
     if nnebins >= nnebins_max:
         return bins, grid
 
     for idx in xrange(niters):
         nbins_test = (nbins_min + nbins_max)/2
-        bins, grid = do_grid(data, nbins_test, nextrabins=nextrabins)
+        bins, grid = do_grid(data, nbins_test, mins, maxs, nextrabins=nextrabins)
         nnebins_test = len([bin for idxs, bin in nonempty_bins(grid)])
         if nbins_test in [nbins_min, nbins_max]:
             break
@@ -129,7 +127,6 @@ def compute_free_energy(grid, ndim, weights, cutoff, kT):
 
     # get number of bins
     nbins = len(grid)
-
     free_energy_grid = np.zeros((nbins,)*ndim, dtype='float')
     free_energy_grid.fill(np.nan)
 
@@ -142,12 +139,8 @@ def compute_free_energy(grid, ndim, weights, cutoff, kT):
     # smooth the data
     if ndim == 2:
         free_energy_grid = smooth2a(free_energy_grid, 2, 2)
-    #elif ndim > 2:
-    #    free_energy_grid = ndimage.uniform_filter(free_energy_grid, size=2)
-
     # rescale so that the maximum value is 0
     free_energy_grid -= np.nanmax(free_energy_grid)
-
     # rescale if the minimum is < than - cutoff
     min_free_energy_grid = np.nanmin(free_energy_grid)
     if min_free_energy_grid < -cutoff :
@@ -158,8 +151,11 @@ def compute_free_energy(grid, ndim, weights, cutoff, kT):
 
     return free_energy_grid
 
-
 def nonempty_bins(grid):
+    """
+    the first element of the generator is a list containing the coordinates of the non-empty bin in the grid
+    whereas the second element is a list with the data located in the bin, they are given by their numbering in "data" of do_grid
+    """
     if not grid:
         pass
     elif isinstance(grid[0], list):
@@ -169,7 +165,6 @@ def nonempty_bins(grid):
                 yield subidxs, subvalue
     else: 
         yield [], grid
-
 
 def pick_points_from_grid(grid, npoints):
     """
@@ -196,7 +191,6 @@ def pick_points_from_grid(grid, npoints):
             npicked = npicked + 1
 
     return idxs_picked_points
-
 
 def pick_points_optimized(data, npoints, idxs_preselect=None):
     """

@@ -323,21 +323,25 @@ cdef int do_biased_force_low_level(int natoms, np.ndarray[np.float64_t,ndim=2] c
     bin_idxs = [] # bin indices
     isempty = 1 # by default the bin is empty
 
-    # compute the index of the bin containing the configuration
+    # compute the index of the bin within which the point is located
     for jdx in xrange(dmsc.ndcs):
         index = int(floor((dcs[jdx] - feh.bins[feh.nbins*jdx])/feh.steps[jdx] + 0.5))
         bin_idxs.append(index)
         bin_idx_s += index*feh.nbins**(dmsc.ndcs-jdx-1)
 
-    # check if the bin is empty or not
-    for idx in xrange(feh.nnebins):
-        if bin_idx_s == feh.nebins_idxs_s[idx]: # non-empty bin found
-            num_line = idx
-            isempty = 0
-            break
-        elif bin_idx_s < feh.nebins_idxs_s[idx]: # the bin is empty
-            isempty = 1
-            break
+    if any([idx < 0 or idx >= feh.nbins for idx in bin_idxs]):
+        # if the point is outside the grid, the serial number does not apply
+        isempty = 1
+    else:
+        # check if the bin is empty or not
+        for idx in xrange(feh.nnebins):
+            if bin_idx_s == feh.nebins_idxs_s[idx]: # non-empty bin found
+                num_line = idx
+                isempty = 0
+                break
+            elif bin_idx_s < feh.nebins_idxs_s[idx]: # the bin is empty
+                isempty = 1
+                break
 
     # estimate the value of the free energy and its gradient
     if isempty == 0:
