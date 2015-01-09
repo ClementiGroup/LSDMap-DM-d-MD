@@ -277,8 +277,6 @@ cdef int do_biased_force_low_level(int natoms, np.ndarray[np.float64_t,ndim=2] c
     cdef unsigned int idx, jdx, kdx, ldx
 
     cdef int isempty, bin_idx_s, num_line
-    cdef int nneighbors_per_dim = 5
-    cdef int nneighbors = nneighbors_per_dim**dmsc.ndcs
 
     cdef double* fe_value = <double *>malloc(sizeof(double))
     cdef double* fe_gradient = <double *>malloc(dmsc.ndcs*sizeof(double))
@@ -357,13 +355,8 @@ cdef int do_biased_force_low_level(int natoms, np.ndarray[np.float64_t,ndim=2] c
                 for jdx in xrange(dmsc.ndcs):
                     force[kdx, ldx] += fe_gradient[jdx]*gradient_dcs[jdx, kdx, ldx]
     elif isempty == 1:
-        for jdx in xrange(dmsc.ndcs):
-            steps[jdx] = feh.steps[jdx]
-        for idx in xrange(feh.nnebins):
-            for jdx in xrange(dmsc.ndcs):
-                nebins_idxs[idx, jdx] = feh.nebins_idxs[idx+feh.nnebins*jdx]
-        # the force is set as 0.0 
         vbias[0] = 0.0
+        # the force is set as 0.0 
         for ldx in xrange(natoms):
             for kdx in xrange(3):
                 force[kdx, ldx] = 0.0

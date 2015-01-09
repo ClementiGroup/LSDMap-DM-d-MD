@@ -278,9 +278,7 @@ class DMapSamplingExe(object):
                 logging.error("argument of checkpoint option should be a positive integer (iteration number to restart from)")
 
         settings = imp.load_source('setfile', args.setfile)
-        # initialize dmap sampling
-        config = DMapSamplingConfig(settings)
-        
+        config = DMapSamplingConfig(settings) 
         umgr, session = pilot.startPilot(settings)
         
         # main loop
@@ -291,7 +289,7 @@ class DMapSamplingExe(object):
             dmapsworker.run_md(umgr, settings)
             # run LSDMap and fit
             dmapsworker.run_lsdmap(umgr, settings, config)
-            dmapsworker.run_fit(umgr, settings, config) # fit configurations of the last iteration
+            dmapsworker.run_fit(umgr, settings, config) # fit configurations of the current iteration
             # compute the free energy
             dmapsworker.do_free_energy(umgr, settings, config)
             # select the new configurations for the next iteration
