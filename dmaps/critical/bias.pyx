@@ -332,12 +332,12 @@ cdef int do_biased_force_low_level(int natoms, np.ndarray[np.float64_t,ndim=2] c
         isempty = 1
     else:
         # check if the bin is empty or not
-        for idx in xrange(feh.nnebins):
-            if bin_idx_s == feh.nebins_idxs_s[idx]: # non-empty bin found
-                num_line = idx
+        for kdx in xrange(feh.nnebins):
+            if bin_idx_s == feh.nebins_idxs_s[kdx]: # non-empty bin found
+                num_line = kdx
                 isempty = 0
                 break
-            elif bin_idx_s < feh.nebins_idxs_s[idx]: # the bin is empty
+            elif bin_idx_s < feh.nebins_idxs_s[kdx]: # the bin is empty
                 isempty = 1
                 break
 
