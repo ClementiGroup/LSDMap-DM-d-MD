@@ -1,3 +1,4 @@
+import os
 import sys
 import re
 import textwrap
@@ -83,34 +84,40 @@ ext_modules = [Extension(
     name='lsdmap/util/pyqcprot',
     sources=["lsdmap/util/pyqcprot.pyx"],
     include_dirs=[numpy_include],
-    extra_compile_args=["-O3","-ffast-math"],
+    extra_compile_args=["-ffast-math"],
     ), Extension(
     name='lsdmap/util/util',
     sources=["lsdmap/util/util.pyx"],
     include_dirs=[numpy_include],
-    extra_compile_args=["-O3","-ffast-math"],
+    extra_compile_args=["-ffast-math"],
     ), Extension(
     name='dmaps/critical/libdms',
     sources=["dmaps/critical/bias.pyx"],
     libraries=['python2.' + str(sys.version_info[1]), 'util'],
     library_dirs=[sys.prefix + '/' + 'lib'],
     include_dirs=[numpy_include],
-    extra_compile_args=["-O3","-ffast-math"],
+    extra_compile_args=["-ffast-math"],
     ), Extension(
     name='dmaps/ctram/ctramfe',
     sources=["dmaps/ctram/ctramfe.pyx"],
     include_dirs=[numpy_include],
-    extra_compile_args=["-O3","-ffast-math"],
+    extra_compile_args=["-ffast-math"],
     ), Extension(
     name='dmaps/tools/voronoi',
     sources=["dmaps/tools/voronoi.pyx"],
     include_dirs=[numpy_include],
-    extra_compile_args=["-O3","-ffast-math"],
+    extra_compile_args=["-ffast-math"],
+    ), Extension(
+    name='dmaps/tools/rbf',
+    sources=["dmaps/tools/rbf.pyx"],
+    include_dirs=[numpy_include],
+    extra_compile_args=["-ffast-math"],
     ), Extension(
     name='dmaps/ctram/wrapper',
-    sources=["dmaps/ctram/wrapper.pyx", "dmaps/ctram/ctram.c"],
+    sources=["dmaps/ctram/wrapper.pyx", "dmaps/ctram/ctram.cpp"],
     include_dirs=[numpy_include],
-    extra_compile_args=["-O3","-ffast-math"],
+    extra_compile_args=["-ffast-math"],
+    language="c++",
     )]
 
 setup(name='lsdmap',
@@ -121,5 +128,4 @@ setup(name='lsdmap',
       license='LICENSE.txt',
       description='LSDMap package',
       long_description=open('README.md').read(),
-      #data_files=[(get_python_lib()+'/dmaps/kernel', ['dmaps/kernel/run.sh'])]
      )

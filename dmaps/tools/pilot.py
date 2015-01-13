@@ -51,7 +51,7 @@ def unit_state_change_cb(unit, state):
 
 def startPilot(settings):
 
-    session = radical.pilot.Session(database_url="mongodb://ec2-184-72-89-141.compute-1.amazonaws.com:27017/")
+    session = radical.pilot.Session(database_url="mongodb://ec2-54-221-194-147.compute-1.amazonaws.com:24242")
     print "Session UID: {0} ".format(session.uid)
 
     # Add an ssh identity to the sessoion

@@ -209,8 +209,8 @@ class DMapSamplingExe(object):
         os.system('rm -rf iter%i'%settings.iter)
         os.system('mkdir iter%i'%settings.iter)
         os.system('cp ' + ' '.join(['confall.gro', 'confall.w', 'confall.ev.embed', 'output.gro', 'output.ev']) + ' iter%i'%settings.iter)
-        os.system('cp -r ' + ' '.join(['lsdmap', 'fit', 'fe']) + ' iter%i'%settings.iter)
-    
+        os.system('cp -r ' + ' '.join(['lsdmap', 'fit', 'fe', 'ctram']) + ' iter%i'%settings.iter)
+
         if settings.iter > 0:
             os.system('cp confall.ev.embed.old iter%i'%settings.iter)
     
