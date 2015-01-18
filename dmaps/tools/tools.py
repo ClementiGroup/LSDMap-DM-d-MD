@@ -139,15 +139,16 @@ def compute_free_energy(grid, ndim, weights, cutoff, kT):
     # smooth the data
     if ndim == 2:
         free_energy_grid = smooth2a(free_energy_grid, 2, 2)
+    free_energy_grid = np.copy(free_energy_grid) # without this line it fails
+
     # rescale so that the maximum value is 0
     free_energy_grid -= np.nanmax(free_energy_grid)
     # rescale if the minimum is < than - cutoff
     min_free_energy_grid = np.nanmin(free_energy_grid)
-    if min_free_energy_grid < -cutoff :
+    if min_free_energy_grid < -cutoff:
         free_energy_grid -= min_free_energy_grid + cutoff
-        free_energy_grid[free_energy_grid > 0.0] = 0.0
-
-    free_energy_grid = np.copy(free_energy_grid) # without this line it fails
+        with np.errstate(invalid='ignore'):
+            free_energy_grid[free_energy_grid > 0.0] = np.nan
 
     return free_energy_grid
 

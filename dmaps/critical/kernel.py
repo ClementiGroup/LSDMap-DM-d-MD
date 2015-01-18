@@ -290,10 +290,10 @@ class DMapSamplingWorker(object):
 
         if config.isctram == 1 and settings.iter > 0:
             print 'Starting cTRAM procedure'
-            ctramworker = ctramk.CTRAM4DMapS(settings, config) # create ctram worker
+            ctramworker = ctramk.CTRAM4DMapSConfig(settings, config) # create ctram worker
             ctramworker.embed_configurations(umgr, settings) # compute the DC's needed
             ctramworker.prepare_inputs(config) # prepare input data to use cTRAM (traj_total_mem, N_mem, count_matrices...)
-            ctramworker.do_ctram(config.niters_ctram, config) # do cTRAM
+            ctramworker.do_ctram(umgr, settings) # do cTRAM
             bins = ctramworker.bins
             grid = ctramworker.grid
             weight = np.exp(ctramworker.log_weight)

@@ -231,8 +231,8 @@ class DMapSamplingExe(object):
         logging.info("restarting from iteration %i" %num_iter)
         # remove iter folders with iter number >= num_iter
         os.system('for dir in iter*; do num=`cut -d "r" -f 2 <<< $dir`; if [ "$num" -ge %i ]; then rm -rf $dir; fi ; done'%num_iter)
+        os.system('rm -rf ' + ' '.join(['md','lsdmap', 'fit', 'fe', 'ctram']))
         os.system('cp iter%i/output.gro input.gro'%(num_iter-1))
-        os.system('rm -rf ' + ' '.join(['lsdmap', 'fit', 'fe', 'ctram']))
         os.system('cp -r iter%i/{'%(num_iter-1) + ','.join(['lsdmap', 'fit', 'fe', 'ctram']) + '} .')
     
         # update iter in settings file
