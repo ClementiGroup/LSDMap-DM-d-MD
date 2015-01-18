@@ -101,6 +101,7 @@ ext_modules = [Extension(
     ), Extension(
     name='dmaps/tools/voronoi',
     sources=["dmaps/tools/voronoi.pyx"],
+    include_dirs=[numpy_include],
     ), Extension(
     name='dmaps/tools/rbf',
     sources=["dmaps/tools/rbf.pyx"],
