@@ -84,40 +84,31 @@ ext_modules = [Extension(
     name='lsdmap/util/pyqcprot',
     sources=["lsdmap/util/pyqcprot.pyx"],
     include_dirs=[numpy_include],
-    extra_compile_args=["-ffast-math"],
     ), Extension(
     name='lsdmap/util/util',
     sources=["lsdmap/util/util.pyx"],
     include_dirs=[numpy_include],
-    extra_compile_args=["-ffast-math"],
     ), Extension(
     name='dmaps/critical/libdms',
     sources=["dmaps/critical/bias.pyx"],
     libraries=['python2.' + str(sys.version_info[1]), 'util'],
     library_dirs=[sys.prefix + '/' + 'lib'],
     include_dirs=[numpy_include],
-    extra_compile_args=["-ffast-math"],
     ), Extension(
     name='dmaps/ctram/ctramfe',
     sources=["dmaps/ctram/ctramfe.pyx"],
     include_dirs=[numpy_include],
-    extra_compile_args=["-ffast-math"],
     ), Extension(
     name='dmaps/tools/voronoi',
     sources=["dmaps/tools/voronoi.pyx"],
-    include_dirs=[numpy_include],
-    extra_compile_args=["-ffast-math"],
     ), Extension(
     name='dmaps/tools/rbf',
     sources=["dmaps/tools/rbf.pyx"],
     include_dirs=[numpy_include],
-    extra_compile_args=["-ffast-math"],
     ), Extension(
     name='dmaps/ctram/wrapper',
-    sources=["dmaps/ctram/wrapper.pyx", "dmaps/ctram/ctram.cpp"],
+    sources=["dmaps/ctram/wrapper.pyx", "dmaps/ctram/ctram.c"],
     include_dirs=[numpy_include],
-    extra_compile_args=["-ffast-math"],
-    language="c++",
     )]
 
 setup(name='lsdmap',
