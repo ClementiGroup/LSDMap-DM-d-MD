@@ -124,7 +124,6 @@ def compute_free_energy(grid, ndim, weights, cutoff, kT):
     """
     Give the free energy grid from a grid computed using do_grid function
     """
-
     # get number of bins
     nbins = len(grid)
     free_energy_grid = np.zeros((nbins,)*ndim, dtype='float')

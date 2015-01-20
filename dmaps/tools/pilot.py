@@ -73,7 +73,6 @@ def startPilot(settings):
         pdesc.sandbox = settings.sandbox
     if settings.remote_host != "localhost":
         pdesc.queue = settings.queue
-    pdesc.project = settings.allocation
 
     # Launch the pilot.
     pilot = pmgr.submit_pilots(pdesc)

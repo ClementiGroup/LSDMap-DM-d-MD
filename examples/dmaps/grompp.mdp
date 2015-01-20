@@ -8,7 +8,7 @@ pbc                       = no
 
 integrator               = sd
 dt                       = 0.001
-nsteps                   = 
+nsteps                   = 50000
 nstxout                  = 0
 nstvout                  = 0
 nstlog                   = 0 
