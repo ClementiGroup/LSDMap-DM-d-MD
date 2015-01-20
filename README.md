@@ -80,6 +80,8 @@ For more information on lsdmap command, simply type:
 	lsdmap -h
 
 
+
+
 DM-d-MD
 =======
 
@@ -97,12 +99,14 @@ A typical usage of DM-d-MD is to call:
 
 	dmdmd -f <configuration_file>
 
+
 Prerequisites
 -------------
 
 In order to use DM-d-MD, it is required that GROMACS has been correctly
 installed and that "grompp" and "mdrun" commands are working properly
 for a serial utilization. If not, please visit http://www.gromacs.org/.
+
 
 Testing
 -------
@@ -117,6 +121,9 @@ executing the command:
 within the specified folder.
 
 
+
+
+
 Diffusion-Map Sampling
 ======================
 
@@ -126,27 +133,28 @@ and more recently, TRAM (Transition-based Reweighting Analysis Method) to offer
 the best way of exploring configuration spaces of macromolecular systems and
 estimating their free energy landscapes.
 
-Besides LSDMap, DMap Sampling requires RADICAL-Pilot, a pilot-job system, to be
-installed properly on the local workstation. Using RADICAL-Pilot implies that
-the user prepares the necessary input files and DMap Sampling configuration
-file on their local workstation, and launches the job from there, but the
-calculations are then performed on the execution host, which is typically an
-HPC resource. To install RADICAL-Pilot, see the paragraph Installation below.
+Besides LSDMap, DMap Sampling requires RADICAL-Pilot, a pilot-job system. 
+Using RADICAL-Pilot implies that the user prepares the necessary input
+files on their local workstation, and launches the job from there, but
+the calculations are then performed on the execution host, which is
+typically an HPC resource. To install RADICAL-Pilot, see the paragraph
+Installation below.
 
 DMap Sampling consists in conducting biased Molecular Dynamics simulations (MD)
-with the biased potential is a local estimate of the free energy of the 
+where the biased potential is a local estimate of the free energy of the 
 system along Diffusion Map coordinates. Since DMap coordinates are associated
 with slow time scales of MD simulations, it becomes easier to explore a wider 
 region of the configuration space without remaining in local minima. To run
-the biased MD, an appropriate hacked version of GROMACS is needed. To install
+the biased MD, an appropriate modified version of GROMACS is needed. To install
 it, see the paragraph Installation below.
+
 
 Installation
 ------------
 
 As mentioned above, DMap Sampling uses RADICAL-Pilot -- see the website
 http://radicalpilot.readthedocs.org/en/latest/ for more information -- implying
-that a typical DMap Sampling job is launched from a local workstation whereas
+that a typical DMap Sampling job is launched from the local workstation whereas
 heavy computations which require the utilization of many CPUs (e.g., to conduct
 biased MD simulation, to compute LSDMap, ...) will be performed on a remote host.
 The above procedure implies:
@@ -169,7 +177,7 @@ Configuration File. See the instructions on the following webpage:
 http://radicalpilot.readthedocs.org/en/latest/machconf.html#writing-a-custom-resource-configuration-file
 To make sure RADICAL-Pilot is working well, see: http://radicalpilot.readthedocs.org/en/latest/testing.html
 
-4. Installing the standard version of GROMACS on the local workstation. See:
+4. Installing a regular version of GROMACS on the local workstation. See:
    http://www.gromacs.org/ for more information.
 
 5. Installing the modified (serial, simple precision) version of GROMACS on the
@@ -177,7 +185,7 @@ To make sure RADICAL-Pilot is working well, see: http://radicalpilot.readthedocs
 
 	git clone git://git.code.sf.net/p/dmaps-gromacs/code dmaps-gromacs-code
 
-   Note that the package includes a modified version of GROMACS 4.6.1. Once cloned,
+   Note that the package contains a modified version of GROMACS 4.6.1. Once cloned,
    follow the following steps to install the package: 
 
    a. Create the GROMACS Makefile. The modified version of GROMACS should
@@ -197,8 +205,8 @@ To make sure RADICAL-Pilot is working well, see: http://radicalpilot.readthedocs
       require additional options to have GROMACS work properly. Again, refer
       to the GROMACS webpage above for more information.
       
-   b. Before installing GROMACS, link the DMap Sampling library to it. Before
-      using make or make install, you should tell GROMACS that it should
+   b. Before installing GROMACS, link the DMap Sampling library to it.
+      Before using make or make install, you should tell GROMACS that it should
       consider a library called libdms.so at the compilation. The library
       was created when the LSDMap package was installed. First, you
       should find the location of this particular library. If the installation
@@ -217,6 +225,7 @@ To make sure RADICAL-Pilot is working well, see: http://radicalpilot.readthedocs
 	make install
 
 You have installed all the prerequisites needed to use Diffusion Map Sampling!
+
 
 Testing
 -------
