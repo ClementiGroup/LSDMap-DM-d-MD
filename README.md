@@ -167,7 +167,6 @@ machine -- see above regarding the installation of LSDMap.
 3. Installing RADICAL-Pilot and make sure it is well configured to work on the
 remote host. For example, RADICAL-Pilot can be installed using pip, see the website
 http://radicalpilot.readthedocs.org/en/latest/installation.html for more information.
-
 RADICAL-Pilot has been designed to work with many different HPC clusters, located
 in many countries (e.g. “archer”, located at EPSRC, UK, "davinci", located at Rice
 University, Houston, USA). To consult the list of pre-configured ressources, see:
