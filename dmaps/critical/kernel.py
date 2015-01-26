@@ -5,6 +5,7 @@ import time
 import logging
 import random
 import numpy as np
+import subprocess
 from math import sqrt, floor
 
 import radical.pilot
@@ -21,7 +22,7 @@ class DMapSamplingWorker(object):
         size = settings.cores
 
         print "Preparing .gro files..."
-        os.system('rm -rf md; mkdir md')
+        subprocess.check_call('rm -rf md; mkdir md', shell=True)
 
         grofile = open('input.gro', 'r')
         grofile.next()
@@ -71,7 +72,7 @@ class DMapSamplingWorker(object):
                             print >> newfile, line.replace('\n', '')
 
         if settings.iter > 0:
-            os.system('mv confall.ev confall.ev.embed.old')
+            subprocess.check_call('mv confall.ev confall.ev.embed.old', shell=True)
 
     def run_md(self, umgr, settings):
 
@@ -156,16 +157,13 @@ class DMapSamplingWorker(object):
         self.coords_lsdmap = self.coords_all[idxs_lsdmap]
         self.weights_lsdmap = self.weights_all[idxs_lsdmap]
 
-        os.system('rm -rf lsdmap; mkdir lsdmap')
+        subprocess.check_call('rm -rf lsdmap; mkdir lsdmap', shell=True)
 
         logging.info('Write configurations in lsdmap/lsdmap_aa.gro')
         gw = writer.open('.gro', pattern=settings.startgro)
         gw.write(self.coords_lsdmap, 'lsdmap/lsdmap_aa.gro')
         logging.info('Write weights in lsdmap/lsdmap.w')
         np.savetxt('lsdmap/lsdmap.w', self.weights_lsdmap, fmt='%.18e')
-
-        logging.info('Create file containing only heavy atoms')
-        os.system('cd lsdmap; echo 2 | trjconv -f lsdmap_aa.gro -s lsdmap_aa.gro -o lsdmap.gro &>/dev/null; cd ..')
 
     def do_postprocessing_lsdmap(self, settings, config):
 
@@ -190,9 +188,8 @@ class DMapSamplingWorker(object):
 
         cu = radical.pilot.ComputeUnitDescription()
         cu.pre_exec = known_pre_exec[settings.remote_host]
-
-        cu.input_staging = [settings.inifile, 'lsdmap/lsdmap.gro', 'lsdmap/lsdmap.w']
-
+        cu.pre_exec = cu.pre_exec + ['echo 2 | trjconv -f lsdmap_aa.gro -s lsdmap_aa.gro -o lsdmap.gro &>/dev/null']
+        cu.input_staging = [settings.inifile, 'lsdmap/lsdmap_aa.gro', 'lsdmap/lsdmap.w']
         cu.executable = 'lsdmap -f ' + settings.inifile + ' -c lsdmap.gro -w lsdmap.w'
         cu.output_staging = ['lsdmap.ev > lsdmap/lsdmap.ev', 'lsdmap.eg > lsdmap/lsdmap.eg', 'lsdmap.log > lsdmap/lsdmap.log']
         cu.mpi = True
@@ -237,20 +234,16 @@ class DMapSamplingWorker(object):
         coords_fit = self.coords_lsdmap[idxs_fit]
         dcs_fit = dcs_lsdmap[idxs_fit]
 
-        os.system('rm -rf fit; mkdir fit')
+        subprocess.check_call('rm -rf fit; mkdir fit', shell=True)
 
         logging.info('Write configurations in fit/fit_aa.gro')
         # write gro file used for the fit
         gw = writer.open('.gro', pattern=settings.startgro)
         gw.write(coords_fit, 'fit/fit_aa.gro')
 
-        logging.info('Create file containing only heavy atoms')
-        os.system('cd fit; echo 2 | trjconv -f fit_aa.gro -s fit_aa.gro -o fit.gro &>/dev/null; cd ..')
-        logging.info('Write DCs in fit/fit.ev')
-
         # write ev file used for the fit
+        logging.info('Write DCs in fit/fit.ev')
         np.savetxt('fit/fit.ev', np.hstack((np.ones((nfit,1)), dcs_fit)), fmt='%.18e')
-        os.system('echo 2 | trjconv -f confall.gro -s confall.gro -o fit/embed.gro &>/dev/null')
 
     def run_fit(self, umgr, settings, config):
 
@@ -266,9 +259,11 @@ class DMapSamplingWorker(object):
         logging.info('Starting Fitting')
         cu = radical.pilot.ComputeUnitDescription()
         cu.pre_exec = known_pre_exec[settings.remote_host]
-        cu.input_staging = [settings.inifile, 'fit/fit.gro', 'fit/fit.ev', 'fit/embed.gro']
+        cu.pre_exec = cu.pre_exec + ['echo 2 | trjconv -f fit_aa.gro -s fit_aa.gro -o fit.gro &>/dev/null']
+        cu.pre_exec = cu.pre_exec + ['echo 2 | trjconv -f confall.gro -s confall.gro -o embed.gro &>/dev/null']
+        cu.input_staging = [settings.inifile, 'fit/fit_aa.gro', 'fit/fit.ev', 'confall.gro']
         cu.executable = 'rbffit -f ' + settings.inifile + ' -c fit.gro -v fit.ev --embed embed.gro ' + dcs_options
-        cu.output_staging = ['fit.w > fit/fit.w', 'fit.sig > fit/fit.sig', 'fit.embed > confall.ev.embed']
+        cu.output_staging = ['fit.w > fit/fit.w', 'fit.sig > fit/fit.sig', 'fit.embed > confall.ev.embed', 'fit.gro > fit/fit.gro', 'embed.gro > fit/embed.gro']
         cu.mpi = True
         cu.cores = settings.cores
         cu.cleanup = True
@@ -323,7 +318,7 @@ class DMapSamplingWorker(object):
         nbins = bins.shape[0]
         nebins_s = np.sum([nebins[idx]*nbins**(ndcs-idx-1) for idx in xrange(ndcs)], axis=0)
 
-        os.system('rm -rf fe; mkdir fe')
+        subprocess.check_call('rm -rf fe; mkdir fe', shell=True)
         logging.info("Save free energy histogram")
         np.savetxt('fe/hist.dat', np.vstack(nebins + (np.array(nebins_s), free_energy_grid[nebins],) + tuple([grads[idx][nebins] for idx in range(ndcs)])).T,
                    fmt=" ".join(["%6.1i" for idx in range(ndcs)]) + " " + "%10.1i %.18e " + " ".join(["%.18e" for idx in range(ndcs)]))

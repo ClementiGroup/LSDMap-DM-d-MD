@@ -2,9 +2,12 @@ import os
 import sys
 import time
 import imp
+import glob
+import shutil
 import argparse
 import ConfigParser
 import logging
+import subprocess
 import radical.pilot
 import numpy as np
 
@@ -41,9 +44,9 @@ class DMapSamplingConfig(object):
                     with open(settings.startgro, 'r') as sfile:
                        for line in sfile:
                           print >> ifile, line.replace("\n", "")
-            os.system("sed -i" + self.sedarg + "'s/isfirst=.*/isfirst=1/g' " + settings.inifile)
+            subprocess.check_call("sed -i" + self.sedarg + "'s/isfirst=.*/isfirst=1/g' " + settings.inifile, shell=True)
         else:
-            os.system("sed -i" + self.sedarg + "'s/isfirst=.*/isfirst=0/g' " + settings.inifile)
+            subprocess.check_call("sed -i" + self.sedarg + "'s/isfirst=.*/isfirst=0/g' " + settings.inifile, shell=True)
 
         # load parameters inside inifile
         self.load_parameters(settings)
@@ -73,7 +76,7 @@ class DMapSamplingConfig(object):
         self.nsteps = config.getint('MD', 'nsteps')
         if self.nsteps%self.nstride != 0:
             raise ValueError("nstride (number of configurations saved per replica) should be a multiple of nsteps, please update file " + settings.inifile)
-        os.system("sed -i" + self.sedarg + "'s/nsteps.*/nsteps                   = %i/g' "%self.nsteps + settings.mdpfile)
+        subprocess.check_call("sed -i" + self.sedarg + "'s/nsteps.*/nsteps                   = %i/g' "%self.nsteps + settings.mdpfile, shell=True)
         logging.info("nsteps for MD simulations was set to %i "%self.nsteps)
 
         # first iteration?
@@ -107,12 +110,12 @@ class DMapSamplingConfig(object):
 
         # update temperature in .mdp file
         if self.solvation in ['none', 'implicit']: 
-            os.system("sed -i" + self.sedarg + "'s/ref_t.*/ref_t               = %i/g' "%temperature + settings.mdpfile)
+            subprocess.check_call("sed -i" + self.sedarg + "'s/ref_t.*/ref_t               = %i/g' "%temperature + settings.mdpfile, shell=True)
         elif self.solvation == 'explicit':
-            os.system("sed -i" + self.sedarg + "'s/ref_t.*/ref_t               = %i %i/g' "%(temperature, temperature) + settings.mdpfile)
+            subprocess.check_call("sed -i" + self.sedarg + "'s/ref_t.*/ref_t               = %i %i/g' "%(temperature, temperature) + settings.mdpfile, shell=True)
         else:
 	    raise ValueError("solvation option in configuration file not understood, should one among none, implicit and explicit")
-        os.system("sed -i" + self.sedarg + "'s/gen_temp.*/gen_temp                = %i/g' "%temperature + settings.mdpfile)
+        subprocess.check_call("sed -i" + self.sedarg + "'s/gen_temp.*/gen_temp                = %i/g' "%temperature + settings.mdpfile, shell=True)
  
         # number of points used for the fitting of the dc values
         self.nfit = config.getint('FITTING', 'npoints')
@@ -206,20 +209,21 @@ class DMapSamplingExe(object):
     def update(self, args, settings, config):
     
         # before updating save data
-        os.system('rm -rf iter%i'%settings.iter)
-        os.system('mkdir iter%i'%settings.iter)
-        os.system('cp ' + ' '.join(['confall.gro', 'confall.w', 'confall.ev.embed', 'output.gro', 'output.ev']) + ' iter%i'%settings.iter)
-        os.system('cp -r ' + ' '.join(['lsdmap', 'fit', 'fe', 'ctram']) + ' iter%i'%settings.iter)
+        subprocess.check_call('rm -rf iter%i'%settings.iter, shell=True)
+        subprocess.check_call('mkdir iter%i'%settings.iter, shell=True)
+        subprocess.check_call('cp ' + ' '.join(['confall.gro', 'confall.w', 'confall.ev.embed', 'output.gro', 'output.ev']) + ' iter%i'%settings.iter, shell=True)
+        subprocess.check_call('cp -r ' + ' '.join(['lsdmap', 'fit', 'fe']) + ' iter%i'%settings.iter, shell=True)
 
         if settings.iter > 0:
-            os.system('cp confall.ev.embed.old iter%i'%settings.iter)
-    
-        os.system('mv output.gro input.gro')
-        os.system('sed -i' + config.sedarg + "'s/iter=.*/iter=%i/g' "%(settings.iter+1) + args.setfile)
-        os.system('sed -i' + config.sedarg + "'s/isfirst=.*/isfirst=0/g' " + settings.inifile)
+            subprocess.check_call('cp confall.ev.embed.old iter%i'%settings.iter, shell=True)
+            if config.isctram == 1:
+                subprocess.check_call('cp -r ctram iter%i'%settings.iter, shell=True)
+
+        subprocess.check_call('mv output.gro input.gro', shell=True)
+        subprocess.check_call('sed -i' + config.sedarg + "'s/iter=.*/iter=%i/g' "%(settings.iter+1) + args.setfile, shell=True)
+        subprocess.check_call('sed -i' + config.sedarg + "'s/isfirst=.*/isfirst=0/g' " + settings.inifile, shell=True)
     
         return settings.iter+1
-
 
     def restart_from_iter(self, num_iter, args):
     
@@ -229,14 +233,23 @@ class DMapSamplingExe(object):
             sedarg = " "
 
         logging.info("restarting from iteration %i" %num_iter)
+
         # remove iter folders with iter number >= num_iter
-        os.system('for dir in iter*; do num=`cut -d "r" -f 2 <<< $dir`; if [ "$num" -ge %i ]; then rm -rf $dir; fi ; done'%num_iter)
-        os.system('rm -rf ' + ' '.join(['md','lsdmap', 'fit', 'fe', 'ctram']))
-        os.system('cp iter%i/output.gro input.gro'%(num_iter-1))
-        os.system('cp -r iter%i/{'%(num_iter-1) + ','.join(['lsdmap', 'fit', 'fe', 'ctram']) + '} .')
+        for dirname in glob.glob("iter*"):
+            num = int(dirname[4:])
+            if num >= num_iter:
+                shutil.rmtree(dirname)
+
+        for dirname in ['md', 'lsdmap', 'fit', 'fe', 'ctram']:
+            if os.path.exists(dirname):
+                shutil.rmtree(dirname)
+
+        shutil.copyfile("iter%i/output.gro"%(num_iter-1), "input.gro")
+        for dirname in ['lsdmap', 'fit', 'fe', 'ctram']:
+            shutil.copytree("iter%i/"%(num_iter-1)+dirname, dirname)
     
         # update iter in settings file
-        os.system('sed -i' + sedarg + "'s/iter=.*/iter=%i/g' "%num_iter + args.setfile)
+        subprocess.check_call('sed -i' + sedarg + "'s/iter=.*/iter=%i/g' "%num_iter + args.setfile, shell=True)
     
     def restart(self, args):
 
@@ -246,9 +259,16 @@ class DMapSamplingExe(object):
             sedarg = " "
 
         # update iter in settings file
-        os.system('sed -i' + sedarg + "'s/iter=.*/iter=0/g' " + args.setfile)
-        os.system('rm -rf iter* ' + ' '.join(['lsdmap', 'fit', 'fe', 'md', 'ctram']))
-    
+        subprocess.check_call('sed -i' + sedarg + "'s/iter=.*/iter=0/g' " + args.setfile, shell=True)
+
+        # remove iter folders with iter number >= num_iter
+        for dirname in glob.glob("iter*"):
+            shutil.rmtree(dirname)
+
+        for dirname in ['md', 'lsdmap', 'fit', 'fe', 'ctram']:
+            if os.path.exists(dirname):
+                shutil.rmtree(dirname)
+
     def run(self):
 
         parser = argparse.ArgumentParser(description="Run Diffusion Map Sampling...")

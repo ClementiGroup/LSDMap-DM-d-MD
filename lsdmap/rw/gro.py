@@ -253,3 +253,6 @@ class Writer(object):
                     for edge in box:
                         file.write('%10.5f'% edge)
                     file.write('\n')
+
+    def close(self):
+        self.pattern.close()
