@@ -15,6 +15,7 @@ cdef public struct DMSConfig:
     int isfirst # 1 if first dmaps iter, 0 if not
     int nstride # number of configs to save
     int ndcs # number of dcs that should be considered
+    double fefrac # fraction of the free energy the bias potential is equal to
     double kT # kT value
 
 cdef public struct Fit:

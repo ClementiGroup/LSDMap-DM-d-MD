@@ -47,8 +47,13 @@ cdef public DMSConfig* initDMSConfig(const char* file):
     dmsc.ndcs = config.getint('DMAPS', 'ndcs')
     # temperature
     kb = 8.31451070e-3 #kJ.mol^(-1).K^(-1)
-    temperature = config.getint('MD', 'temperature')
+    temperature = config.getfloat('MD', 'temperature')
     dmsc.kT = kb*temperature
+
+    if config.has_option('DMAPS', 'fefrac'):
+        dmsc.fefrac = config.getfloat('DMAPS', 'fefrac')
+    else:
+        dmsc.fefrac = 1.0
 
     return &dmsc
 
@@ -349,14 +354,15 @@ cdef int do_biased_force_low_level(int natoms, np.ndarray[np.float64_t,ndim=2] c
         # interpolate the free energy locally
         local_fe_fit_voronoi(fe_value, fe_gradient, dcs, dmsc.ndcs, 5, feh, 0.6)
         # update vbias and the biased force
-        vbias[0] = -fe_value[0]
+        vbias[0] = -dmsc.fefrac*fe_value[0]
         for ldx in xrange(natoms):
             for kdx in xrange(3):
                 for jdx in xrange(dmsc.ndcs):
-                    force[kdx, ldx] += fe_gradient[jdx]*gradient_dcs[jdx, kdx, ldx]
+                    force[kdx, ldx] += dmsc.fefrac*fe_gradient[jdx]*gradient_dcs[jdx, kdx, ldx]
     elif isempty == 1:
+        # vbias is set as minus the maximum value of the free energy
         vbias[0] = 0.0
-        # the force is set as 0.0 
+        # the force is set as 0.0
         for ldx in xrange(natoms):
             for kdx in xrange(3):
                 force[kdx, ldx] = 0.0

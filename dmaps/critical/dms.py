@@ -124,6 +124,11 @@ class DMapSamplingConfig(object):
         ncutoff =  config.getint('DMAPS', 'ncutoff')
         self.cutoff = ncutoff*self.kT
 
+        if config.has_option('DMAPS', 'fefrac'):
+            self.fefrac = config.getfloat('DMAPS', 'fefrac')
+        else:
+            self.fefrac = 1.0
+
         # get ctram parameters
         if config.has_section("CTRAM"):
             self.isctram = config.getint("CTRAM", "isctram")
