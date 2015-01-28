@@ -224,10 +224,14 @@ class DMapSamplingExe(object):
             if config.isctram == 1:
                 subprocess.check_call('cp -r ctram iter%i'%settings.iter, shell=True)
 
+        # at the end of the iteration, the output .gro file becomes the input .gro file of the new iteration
         subprocess.check_call('mv output.gro input.gro', shell=True)
+        # change the number of the current iteration in the file settings
         subprocess.check_call('sed -i' + config.sedarg + "'s/iter=.*/iter=%i/g' "%(settings.iter+1) + args.setfile, shell=True)
-        subprocess.check_call('sed -i' + config.sedarg + "'s/isfirst=.*/isfirst=0/g' " + settings.inifile, shell=True)
-    
+        # change the value of isfirst in the config file to 0 (to specify that iteration 0 (plain MD sim.) has been done)
+        if settings.iter == 0:
+            subprocess.check_call('sed -i' + config.sedarg + "'s/isfirst=.*/isfirst=0/g' " + settings.inifile, shell=True)
+
         return settings.iter+1
 
     def restart_from_iter(self, num_iter, args):
@@ -238,20 +242,23 @@ class DMapSamplingExe(object):
             sedarg = " "
 
         logging.info("restarting from iteration %i" %num_iter)
-
         # remove iter folders with iter number >= num_iter
         for dirname in glob.glob("iter*"):
             num = int(dirname[4:])
             if num >= num_iter:
                 shutil.rmtree(dirname)
-
+        # remove the folders of the current iteration
         for dirname in ['md', 'lsdmap', 'fit', 'fe', 'ctram']:
             if os.path.exists(dirname):
                 shutil.rmtree(dirname)
 
+        # copy the files needed to continue from the iteration num_iter
         shutil.copyfile("iter%i/output.gro"%(num_iter-1), "input.gro")
-        for dirname in ['lsdmap', 'fit', 'fe', 'ctram']:
+        for dirname in ['lsdmap', 'fit', 'fe']:
             shutil.copytree("iter%i/"%(num_iter-1)+dirname, dirname)
+        # copy ctram directory if ctram option is enable
+        if config.isctram == 1:
+                shutil.copytree("iter%i/ctram"%(num_iter-1), "ctram")
     
         # update iter in settings file
         subprocess.check_call('sed -i' + sedarg + "'s/iter=.*/iter=%i/g' "%num_iter + args.setfile, shell=True)
