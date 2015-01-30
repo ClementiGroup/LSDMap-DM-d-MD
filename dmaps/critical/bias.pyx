@@ -1,3 +1,4 @@
+import sys
 import ConfigParser
 from math import floor
 import itertools as it
@@ -59,17 +60,18 @@ cdef public DMSConfig* initDMSConfig(const char* file):
 
 cdef public FEHist* initFEHist(DMSConfig *dmsc, const char* file):
 
+
     if dmsc.isfirst == 0:
 
         bins = np.loadtxt('bins.xyz')
         feh.nbins = bins.shape[0]
 
         hfile = 'hist.dat'
-        nebins_idxs = np.genfromtxt(hfile, usecols=tuple(range(dmsc.ndcs)), dtype="i4")
-        nebins_idxs_s = np.genfromtxt(hfile, usecols=dmsc.ndcs, dtype="i4")
-
-        free_energy = np.genfromtxt(hfile, usecols=dmsc.ndcs+1)
-        gradient = np.genfromtxt(hfile, usecols=tuple(range(dmsc.ndcs+2,2*dmsc.ndcs+2)))
+        histo = np.loadtxt(hfile)
+        nebins_idxs = histo[:,:dmsc.ndcs].astype(int)
+        nebins_idxs_s = histo[:,dmsc.ndcs].astype(int)
+        free_energy = histo[:,dmsc.ndcs+1]
+        gradient = histo[:,dmsc.ndcs+2:2*dmsc.ndcs+2]
 
         feh.nnebins = free_energy.shape[0]
 
