@@ -60,7 +60,6 @@ cdef public DMSConfig* initDMSConfig(const char* file):
 
 cdef public FEHist* initFEHist(DMSConfig *dmsc, const char* file):
 
-
     if dmsc.isfirst == 0:
 
         bins = np.loadtxt('bins.xyz')
@@ -284,6 +283,7 @@ cdef int do_biased_force_low_level(int natoms, np.ndarray[np.float64_t,ndim=2] c
     cdef unsigned int idx, jdx, kdx, ldx
 
     cdef int isempty, bin_idx_s, num_line
+    cdef int idxtmp
 
     cdef double* fe_value = <double *>malloc(sizeof(double))
     cdef double* fe_gradient = <double *>malloc(dmsc.ndcs*sizeof(double))
@@ -334,7 +334,7 @@ cdef int do_biased_force_low_level(int natoms, np.ndarray[np.float64_t,ndim=2] c
         bin_idxs.append(index)
         bin_idx_s += index*feh.nbins**(dmsc.ndcs-jdx-1)
 
-    if any([idx < 0 or idx >= feh.nbins for idx in bin_idxs]):
+    if any([idxtmp < 0 or idxtmp >= feh.nbins for idxtmp in bin_idxs]):
         # if the point is outside the grid, the serial number does not apply
         isempty = 1
     else:

@@ -66,8 +66,8 @@ def check_import(pkgname, pkgver):
 
 check_import('numpy', min_numpy_version)
 check_import('scipy', min_scipy_version)
-check_import('mpi4py', min_mpi4py_version)
-check_import('cython', min_cython_version)
+#check_import('mpi4py', min_mpi4py_version)
+#check_import('cython', min_cython_version)
 
 import numpy as np
 try:
