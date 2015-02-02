@@ -4,18 +4,18 @@
 niters=3
 
 # number of replicas
-nreplicas=36
+nreplicas=32
 
 # current iteration (to restart new dmap sampling, set iter to 0)
-iter=3
+iter=0
 
 ### radical-pilot parameters
 
 # remote host (rice.davinci, rice.biou...)
-remote_host="rice.davinci"
+remote_host="rice.biou"
 
 # name on remote machine
-uname="jc49"
+uname="uname"
 
 # run time in minutes
 runtime=180
@@ -24,7 +24,7 @@ runtime=180
 cores=nreplicas
 
 # queue on remote machine
-queue="parallel"
+queue="serial"
 
 ### MD simulation files (GROMACS)
 
