@@ -1,0 +1,5 @@
+#!/usr/bin/python
+
+from lsdmap.rbf import rbf
+
+rbf.RbfExe().run()

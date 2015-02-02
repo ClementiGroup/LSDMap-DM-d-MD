@@ -1,0 +1,5 @@
+#!/usr/bin/python
+
+from dmdmd import reweighting
+
+reweighting.ReweightingStep().run()

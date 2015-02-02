@@ -1,0 +1,7 @@
+INFO:root:20:06:09: intializing LSDMap...
+INFO:root:20:06:09: input coordinates loaded
+INFO:root:20:06:09: LSDMap initialized
+INFO:root:20:06:41: distance matrix computed
+INFO:root:20:06:41: kernel diagonalized
+INFO:root:20:06:42: Eigenvalues/eigenvectors saved (.eg/.ev files)
+INFO:root:20:06:42: LSDMap computation done

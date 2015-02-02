@@ -1,0 +1,5 @@
+#!/usr/bin/python
+
+from dmdmd.tools import p_mdrun
+
+p_mdrun.ParallelMDruns().run()

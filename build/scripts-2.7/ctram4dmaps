@@ -1,0 +1,6 @@
+#!/usr/bin/python
+
+from dmaps.ctram import kernel as ctramk
+
+if __name__ == '__main__':
+    ctramk.CTRAM4DMapSExe().run()

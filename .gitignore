@@ -1,7 +1,5 @@
-build/
 *.pyc
+*.swp
+.*
+#*#
 *~
-*.c
-*.log
-*.h
-*.cpp
