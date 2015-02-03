@@ -1,5 +1,0 @@
-#!/usr/bin/python
-
-from dmdmd import select
-
-select.SelectionStep().run()

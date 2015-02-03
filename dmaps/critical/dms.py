@@ -198,8 +198,8 @@ for idx in `seq 1 $nframes`; do
   sed "$start"','"$end"'!d' $startgro > $tmpstartgro
 
   # gromacs preprocessing & MD
-  grompp_jbm -f %(mdpfile)s -c $tmpstartgro -p %(topfile)s %(grompp_options)s &> /dev/null
-  mdrun_jbm -nt 1 -dms %(inifile)s -s topol.tpr %(mdrun_options)s &> mdrun.log
+  grompp -f %(mdpfile)s -c $tmpstartgro -p %(topfile)s %(grompp_options)s &> /dev/null
+  mdrun -nt 1 -dms %(inifile)s -s topol.tpr %(mdrun_options)s &> mdrun.log
 
 done
 

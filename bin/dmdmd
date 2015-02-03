@@ -33,10 +33,6 @@ if [[ ! -z $mdrun_options ]]; then
   p_mdrun_options=$p_mdrun_options" --mdrun_options=\"$mdrun_options\""
 fi
 
-if [[ ! -z $other_options ]]; then
-  p_mdrun_options=$p_mdrun_options" $other_options"
-fi
-
 if [[ ! -z $ndxfile ]]; then
   p_mdrun_options=$p_mdrun_options" -n $ndxfile"
 fi

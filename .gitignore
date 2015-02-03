@@ -1,6 +1,7 @@
+build/
 *.pyc
-*.swp
-.*
-#*#
 *~
-examples/*
+*.c
+*.log
+*.h
+*.cpp
