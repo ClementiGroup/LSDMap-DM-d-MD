@@ -199,7 +199,7 @@ cdef public BiasedMD* initBiasedMD(DMSConfig *dmsc, const char* file):
     cdef unsigned int idx
     cdef int natoms
     # list of heavy atoms
-    heavy_atoms = ['C', 'N', 'O', 'P', 'S']
+    heavy_atoms = ['C', 'N', 'O', 'P', 'S', 'CA']
     heavy_atoms_idxs = []
 
     f = open('tmp.gro', 'r')
