@@ -205,7 +205,7 @@ class Writer(object):
         except KeyError:
             raise NotImplementedError('a file pattern is needed to write .gro files, please use writer.open(format, pattern=...)')
 
-    def write(self, coords, filename, mode='w'):
+    def write(self, coords, filename, idxs_atoms=None, mode='w'):
 
         coords = np.array(coords)
 
@@ -216,7 +216,10 @@ class Writer(object):
 
         ncoords = coords.shape[0]
         ndim = coords.shape[1]
-        natoms = coords.shape[2]
+        if idxs_atoms is None:
+            natoms = coords.shape[2]
+        else:
+            natoms = len(idxs_atoms)
 
         if ndim not in (3, 6) :
             raise ValueError('coordinates should be an array with 3 or 6 columns (number of spatial dimensions) ')
@@ -224,11 +227,12 @@ class Writer(object):
         residues = self.pattern.residues
         atoms = self.pattern.atoms
         atoms_nums = self.pattern.atoms_nums
+        if idxs_atoms is not None:
+            residues = [residues[idx] for idx in idxs_atoms]
+            atoms = [atoms[idx] for idx in idxs_atoms]
+            atoms_nums = ['%i'%(idx+1) for idx in range(len(idxs_atoms))]
         box = self.pattern.box
 
-        if natoms != len(atoms):
-            raise GroError('pattern used to create writer object has not the same number of atoms that the coordinates provided')
-        
         with open(filename, mode) as file:
             # Atom descriptions and coords
             if ndim == 3:
@@ -236,8 +240,12 @@ class Writer(object):
                     file.write(self.pattern.firstline)
                     file.write(self.fmt['numatoms'] %natoms)
                     for idx, [residue, atom, atom_num] in enumerate(it.izip(residues, atoms, atoms_nums)):
-                        output_line = self.fmt['xyz'] % \
-                            (residue, atom, atom_num, coord[0,idx], coord[1,idx], coord[2,idx])
+                        if idxs_atoms is None:
+                           output_line = self.fmt['xyz'] % \
+                                (residue, atom, atom_num, coord[0,idx], coord[1,idx], coord[2,idx])
+                        else:
+                           output_line = self.fmt['xyz'] % \
+                                (residue, atom, atom_num, coord[0,idxs_atoms[idx]], coord[1,idxs_atoms[idx]], coord[2,idxs_atoms[idx]])
                         file.write(output_line)
                     for edge in box:
                         file.write('%10.5f'% edge)
@@ -247,8 +255,13 @@ class Writer(object):
                     file.write(self.pattern.firstline)
                     file.write(self.fmt['numatoms'] %natoms)
                     for idx, [residue, atom, atom_num] in enumerate(it.izip(residues, atoms, atoms_nums)):
-                        output_line = self.fmt['xyz_v'] % \
-                            (residue, atom, atom_num, coord[0,idx], coord[1,idx], coord[2,idx], coord[3,idx], coord[4,idx], coord[5,idx])
+                        if idxs_atoms is None:
+                            output_line = self.fmt['xyz_v'] % \
+                                (residue, atom, atom_num, coord[0,idx], coord[1,idx], coord[2,idx], coord[3,idx], coord[4,idx], coord[5,idx])
+                        else:
+                            output_line = self.fmt['xyz_v'] % \
+                                (residue, atom, atom_num, coord[0,idxs_atoms[idx]], coord[1,idxs_atoms[idx]], coord[2,idxs_atoms[idx]], \
+                                    coord[3,idxs_atoms[idx]], coord[4,idxs_atoms[idx]], coord[5,idxs_atoms[idx]])
                         file.write(output_line)
                     for edge in box:
                         file.write('%10.5f'% edge)

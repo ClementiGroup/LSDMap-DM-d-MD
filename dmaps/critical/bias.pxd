@@ -6,7 +6,10 @@ cdef public struct BiasedMD:
     int step # current step number
     int nsteps # number of steps
     int* heavy_atoms_idxs # indices of heavy atoms
-    double vbias # value of biased potential
+    double vbias # value of the bias potential GP
+    #double* vbias_prev # value of last calculated bias potential for multiple timestep monitoring GP
+    #float* coord_prev # coordinates at timestep previous to application of bias potential GP
+    #float* biasforce # value of the last applied biased force GP
     double* dcs # values of dcs
     float* coord # coordinates
     float* force # force
@@ -16,6 +19,8 @@ cdef public struct DMSConfig:
     int nstride # number of configs to save
     int ndcs # number of dcs that should be considered
     double fefrac # fraction of the free energy the bias potential is equal to
+    int nstepbias # number of timesteps between two application of bias force (multiple timestepping) GP
+    int uniform_sampling
     double kT # kT value
 
 cdef public struct Fit:
@@ -41,4 +46,4 @@ cdef extern from "math.h":
 
 cdef int do_biased_force_low_level(int natoms, np.ndarray[np.float64_t,ndim=2] coord, np.ndarray[np.float64_t,ndim=2] force, double* vbias, double* dcs, DMSConfig *dmsc, Fit *ft, FEHist *feh)
 
-cdef int save_data(np.ndarray[np.float64_t,ndim=2] coord, BiasedMD *bs, DMSConfig *dmsc)
+cdef int save_data(np.ndarray[np.float64_t,ndim=2] coord, heavy_atoms_idxs, BiasedMD *bs, DMSConfig *dmsc)

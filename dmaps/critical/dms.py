@@ -124,20 +124,45 @@ class DMapSamplingConfig(object):
         ncutoff =  config.getint('DMAPS', 'ncutoff')
         self.cutoff = ncutoff*self.kT
 
-        if config.has_option('DMAPS', 'fefrac'):
+        # fraction of the free energy we actually use for the bias potential
+        if config.has_option('fefrac', 'DMAPS'):
             self.fefrac = config.getfloat('DMAPS', 'fefrac')
         else:
             self.fefrac = 1.0
 
+        # number of bins used to compute the free energ histogram
+        if config.has_option('nbinsfe', 'DMAPS'):
+            self.nbinsfe = config.getint('DMAPS', 'nbinsfe')
+        else:
+            self.nbinsfe = None
+
+        # number of MD steps skipped for the computation of the bias potential
+        if config.has_option('nstepbias', 'DMAPS'):
+            self.nstepbias = config.getint('DMAPS', 'nstepbias') # GP
+            nsave = self.nsteps/self.nstride
+            if nsave%self.nstepbias != 0:
+                raise ValueError("the number of steps skipped when applying the biased force must divide exactly\
+                    (with no remainder) the number of steps in between two consecutive config savings")
+        else:
+            self.nstepbias = 1
+
+        # check if uniform sampling is enabled when restarting
+        if config.has_option('uniform_sampling', 'DMAPS'):
+            self.uniform_sampling = config.getint('DMAPS', 'uniform_sampling')
+            if self.uniform_sampling not in [0,1]:
+                raise ValueError("option uniform_sampling should be 0 or 1!")
+        else:
+            self.uniform_sampling = 0
+
         # get ctram parameters
-        if config.has_section("CTRAM"):
-            self.isctram = config.getint("CTRAM", "isctram")
+        if config.has_section('CTRAM'):
+            self.isctram = config.getint('CTRAM', 'isctram')
             if self.isctram == 1:
-                self.ntau_ctram = config.getint("CTRAM", "ntau")
-                self.nstates_ctram = config.getint("CTRAM", "nstates")
-                self.niters_ctram = config.getint("CTRAM", "niters")
-                if config.has_option("nbins", "CTRAM"):
-                    self.nbins_ctram = config.getint("nbins", "CTRAM")
+                self.ntau_ctram = config.getint('CTRAM', 'ntau')
+                self.nstates_ctram = config.getint('CTRAM', 'nstates')
+                self.niters_ctram = config.getint('CTRAM', 'niters')
+                if config.has_option('nbins', 'CTRAM'):
+                    self.nbins_ctram = config.getint('nbins', 'CTRAM')
                 else:
                     self.nbins_ctram = None
                 # check if ntau is larger than nstride
@@ -254,11 +279,10 @@ class DMapSamplingExe(object):
 
         # copy the files needed to continue from the iteration num_iter
         shutil.copyfile("iter%i/output.gro"%(num_iter-1), "input.gro")
-        for dirname in ['lsdmap', 'fit', 'fe']:
-            shutil.copytree("iter%i/"%(num_iter-1)+dirname, dirname)
-        # copy ctram directory if ctram option is enable
-        if config.isctram == 1:
-                shutil.copytree("iter%i/ctram"%(num_iter-1), "ctram")
+        for folder in ['lsdmap', 'fit', 'fe', 'ctram']:
+            dirname = "iter%i/"%(num_iter-1)+folder
+            if os.path.exists(dirname):
+                shutil.copytree(dirname, folder)
     
         # update iter in settings file
         subprocess.check_call('sed -i' + sedarg + "'s/iter=.*/iter=%i/g' "%num_iter + args.setfile, shell=True)
@@ -287,21 +311,20 @@ class DMapSamplingExe(object):
         parser.add_argument("-f", type=str, dest="setfile", required=True, help='File containing settings (input): -')
         parser.add_argument("--restart", action="store_true", dest="restart", default=False, help='restart from scratch')
         parser.add_argument("--checkpoint", type=int, dest="num_iter", help='restart from a given iteration')
-        
+
         args = parser.parse_args()
-        
+
         logging.basicConfig(filename='dmaps.log',
                             filemode='w',
                             format="%(levelname)s:%(name)s:%(asctime)s: %(message)s",
                             datefmt="%H:%M:%S",
                             level=logging.DEBUG)
-        
+
         if args.restart:
             self.restart(args)
             if args.num_iter is not None:
                 logging.error("checkpoint option can not be set together with restart option")
-        
-        if args.num_iter is not None:
+        elif args.num_iter is not None:
             if args.num_iter == 0:
                 logging.error("checkpoint option can not be set to 0, use restart option instead")
             elif args.num_iter > 0:
@@ -310,23 +333,30 @@ class DMapSamplingExe(object):
                 logging.error("argument of checkpoint option should be a positive integer (iteration number to restart from)")
 
         settings = imp.load_source('setfile', args.setfile)
+        # if restart or checkpoint options are disabled, restart from the iteration specified in settings
+        if not args.restart and args.num_iter is None:
+            if settings.iter == 0:
+                self.restart(args)
+            else:
+                self.restart_from_iter(settings.iter, args)
         config = DMapSamplingConfig(settings) 
         umgr, session = pilot.startPilot(settings)
-        
+
         # main loop
         for idx in xrange(settings.niters):
             logging.info("START ITERATION %i"%settings.iter)
             # run biased MD
             dmapsworker = dmsk.DMapSamplingWorker()
-            dmapsworker.run_md(umgr, settings)
+            dmapsworker.run_md(umgr, settings, config)
             # run LSDMap and fit
             dmapsworker.run_lsdmap(umgr, settings, config)
             dmapsworker.run_fit(umgr, settings, config) # fit configurations of the current iteration
             # compute the free energy
             dmapsworker.do_free_energy(umgr, settings, config)
-            # select the new configurations for the next iteration
-            dmapsworker.select_new_points(settings, config)
+            if config.uniform_sampling == 1:
+                # select the new configurations for the next iteration uniformly along the DC's 
+                dmapsworker.select_new_points(settings, config)
             # update for next iteration
             settings.iter = self.update(args, settings, config)
-           
+
         session.close()
