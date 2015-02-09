@@ -64,12 +64,6 @@ cdef public DMSConfig* initDMSConfig(const char* file):
     else:
         dmsc.fefrac = 1.0
 
-    # check if uniform sampling is enabled when restarting
-    if config.has_option('uniform_sampling', 'DMAPS'):
-        dmsc.uniform_sampling = config.getint('DMAPS', 'uniform_sampling')
-    else:
-        dmsc.uniform_sampling = 0
-
     return &dmsc
 
 
@@ -269,19 +263,13 @@ cdef public int do_biased_force(BiasedMD *bs, DMSConfig *dmsc, Fit *ft, FEHist *
     if bs.step%nsave == 0 and bs.step > 0:
         save_data(coord, heavy_atoms_idxs, bs, dmsc)
 
-    # store dcs after nsavedcs steps to compute autocorrelation time 
-    #nsavedcs = max(int(floor(nsave*0.1)), 1)
-    #if bs.step%nsavedcs == 0 and bs.step > 0 and dmsc.isfirst == 0:
-    #    with open('autocorr.ev', 'a') as evfile:
-    #        print >> evfile, ' '.join(['%.18e' % (bs.dcs[idx],) for idx in xrange(dmsc.ndcs)])
-
     # compute biased force if not first iteration
     if dmsc.isfirst == 0:
          #if bs.step % dmsc.nstepbias == dmsc.nstepbias-1: # GP
          #   bs.coord_prev = #save conf    # GP
          #if bs.step % dmsc.nstepbias == 1:    # GP
          #   print bs.force[0], bs.force[1], bs.force[3] # GP
-        if bs.step%dmsc.nstepbias == 0: # GP
+        if bs.step%dmsc.nstepbias == 0:
             do_biased_force_low_level(nheavy_atoms, coord_heavy_atoms, force_heavy_atoms, vbias, dcs, dmsc, ft, feh)
             for jdx in xrange(dmsc.ndcs):
                 bs.dcs[jdx] = dcs[jdx]
@@ -290,8 +278,7 @@ cdef public int do_biased_force(BiasedMD *bs, DMSConfig *dmsc, Fit *ft, FEHist *
             #print bs.force[0], bs.force[1], bs.force[3], force[0][1]
             for idx in xrange(3):
                 for jdx, atom_jdx in enumerate(heavy_atoms_idxs):
-                    bs.force[idx+3*atom_jdx] += force_heavy_atoms[idx][jdx]*dmsc.nstepbias # GP
-                    #bs.biasforce[idx+3*atom_jdx] += force_heavy_atoms[idx][jdx]*dmsc.nstepbias
+                    bs.force[idx+3*atom_jdx] += force_heavy_atoms[idx][jdx]*dmsc.nstepbias
             #print bs.force[0], bs.force[1], bs.force[3], force[0][1]
     else:
         bs.vbias = 0.0
@@ -395,16 +382,10 @@ cdef int do_biased_force_low_level(int natoms, np.ndarray[np.float64_t,ndim=2] c
 
 cdef int save_data(np.ndarray[np.float64_t,ndim=2] coord, heavy_atoms_idxs, BiasedMD *bs, DMSConfig *dmsc):
 
-    if dmsc.uniform_sampling == 1:
-        w = writer.open('.gro', pattern='tmp.gro')
-        w.write(coord, 'confall.gro', mode='a')
-        w.close()
-    elif dmsc.uniform_sampling == 0:
-        w = writer.open('.gro', pattern='tmp.gro')
-        w.write(coord, 'confall.gro', idxs_atoms=heavy_atoms_idxs, mode='a')
-        if bs.step == bs.nsteps:
-            w.write(coord, 'output.gro', mode='a')
-        w.close()
+    w = writer.open('.gro', pattern='tmp.gro')
+    w.write(coord, 'confall_aa.gro', mode='a') # write configurations with all atoms
+    w.write(coord, 'confall.gro', idxs_atoms=heavy_atoms_idxs, mode='a') # write configurations with heavy atoms
+    w.close()
 
     with open('confall.w', 'a') as wfile:
         print >> wfile, '%.18e' %(exp(bs.vbias/dmsc.kT))

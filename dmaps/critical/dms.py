@@ -146,13 +146,13 @@ class DMapSamplingConfig(object):
         else:
             self.nstepbias = 1
 
-        # check if uniform sampling is enabled when restarting
+        # check if uniform sampling is disabled when restarting
         if config.has_option('uniform_sampling', 'DMAPS'):
             self.uniform_sampling = config.getint('DMAPS', 'uniform_sampling')
             if self.uniform_sampling not in [0,1]:
                 raise ValueError("option uniform_sampling should be 0 or 1!")
         else:
-            self.uniform_sampling = 0
+            self.uniform_sampling = 1
 
         # get ctram parameters
         if config.has_section('CTRAM'):
@@ -353,9 +353,8 @@ class DMapSamplingExe(object):
             dmapsworker.run_fit(umgr, settings, config) # fit configurations of the current iteration
             # compute the free energy
             dmapsworker.do_free_energy(umgr, settings, config)
-            if config.uniform_sampling == 1:
-                # select the new configurations for the next iteration uniformly along the DC's 
-                dmapsworker.select_new_points(settings, config)
+            # select the new configurations for the next iteration
+            dmapsworker.select_new_points(settings, config)
             # update for next iteration
             settings.iter = self.update(args, settings, config)
 

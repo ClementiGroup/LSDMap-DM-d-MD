@@ -57,7 +57,7 @@ class DMapSamplingWorker(object):
 
     def do_postprocessing_md(self, settings):
 
-        files_md_iter0 = ['confall.gro', 'output.gro', 'confall.w']
+        files_md_iter0 = ['confall.gro', 'confall_aa.gro', 'confall.w']
         if settings.iter == 0:
             files_md = files_md_iter0
         else:
@@ -96,11 +96,9 @@ class DMapSamplingWorker(object):
             cu.input_staging = ['run_md.sh > run.sh', 'md/input%i.gro > input.gro'%idx, settings.mdpfile, settings.topfile, settings.inifile]
             if settings.iter > 0:
                 cu.input_staging.extend(['fe/bins.xyz', 'fe/hist.dat', 'fit/fit.gro', 'fit/fit.w', 'fit/fit.sig'])
-            cu.output_staging = ['confall.gro > md/confall%i.gro'%idx, 'confall.w > md/confall%i.w'%idx]
+            cu.output_staging = ['confall.gro > md/confall%i.gro'%idx, 'confall_aa.gro > md/confall_aa%i.gro'%idx, 'confall.w > md/confall%i.w'%idx]
             if settings.iter > 0:
                 cu.output_staging.extend(['confall.ev > md/confall%i.ev'%idx])
-            if config.uniform_sampling == 0:
-                cu.output_staging.extend(['output.gro > md/output%i.gro'%idx]) 
             cu.cores = 1
             cu.cleanup = True
 
@@ -120,7 +118,6 @@ class DMapSamplingWorker(object):
 
         tcpu2 = time.time()
         print 'Total Simulation Time : ', tcpu2 - tcpu1
-
         for unit in units:
             start_times.append(unit.start_time)
             end_times.append(unit.stop_time)
@@ -161,12 +158,8 @@ class DMapSamplingWorker(object):
         subprocess.check_call('rm -rf lsdmap; mkdir lsdmap', shell=True)
 
         gw = writer.open('.gro', pattern='confall.gro')
-        if config.uniform_sampling == 1:
-            logging.info('Write configurations in lsdmap/lsdmap_aa.gro')
-            gw.write(self.coords_lsdmap, 'lsdmap/lsdmap_aa.gro')
-        elif config.uniform_sampling == 0:
-            logging.info('Write configurations in lsdmap/lsdmap.gro')
-            gw.write(self.coords_lsdmap, 'lsdmap/lsdmap.gro')
+        logging.info('Write configurations in lsdmap/lsdmap.gro')
+        gw.write(self.coords_lsdmap, 'lsdmap/lsdmap.gro')
         logging.info('Write weights in lsdmap/lsdmap.w')
         np.savetxt('lsdmap/lsdmap.w', self.weights_lsdmap, fmt='%.18e')
 
@@ -193,11 +186,7 @@ class DMapSamplingWorker(object):
 
         cu = radical.pilot.ComputeUnitDescription()
         cu.pre_exec = known_pre_exec[settings.remote_host]
-        if config.uniform_sampling == 1:
-            cu.pre_exec = cu.pre_exec + ['echo 2 | trjconv -f lsdmap_aa.gro -s lsdmap_aa.gro -o lsdmap.gro &>/dev/null']
-            cu.input_staging = [settings.inifile, 'lsdmap/lsdmap_aa.gro', 'lsdmap/lsdmap.w']
-        elif config.uniform_sampling == 0:
-            cu.input_staging = [settings.inifile, 'lsdmap/lsdmap.gro', 'lsdmap/lsdmap.w']
+        cu.input_staging = [settings.inifile, 'lsdmap/lsdmap.gro', 'lsdmap/lsdmap.w']
         cu.executable = 'lsdmap -f ' + settings.inifile + ' -c lsdmap.gro -w lsdmap.w'
         cu.output_staging = ['lsdmap.ev > lsdmap/lsdmap.ev', 'lsdmap.eg > lsdmap/lsdmap.eg', 'lsdmap.log > lsdmap/lsdmap.log']
         cu.mpi = True
@@ -245,14 +234,9 @@ class DMapSamplingWorker(object):
         subprocess.check_call('rm -rf fit; mkdir fit', shell=True)
 
         gw = writer.open('.gro', pattern='confall.gro')
-        if config.uniform_sampling == 1:
-            logging.info('Write configurations in fit/fit_aa.gro')
-            # write gro file used for the fit
-            gw.write(coords_fit, 'fit/fit_aa.gro')
-        elif config.uniform_sampling == 0:
-            logging.info('Write configurations in fit/fit.gro')
-            # write gro file used for the fit
-            gw.write(coords_fit, 'fit/fit.gro')
+        logging.info('Write configurations in fit/fit.gro')
+        # write gro file used for the fit
+        gw.write(coords_fit, 'fit/fit.gro')
 
         # write ev file used for the fit
         logging.info('Write DCs in fit/fit.ev')
@@ -272,16 +256,9 @@ class DMapSamplingWorker(object):
         logging.info('Starting Fitting')
         cu = radical.pilot.ComputeUnitDescription()
         cu.pre_exec = known_pre_exec[settings.remote_host]
-        if config.uniform_sampling == 1:
-            cu.pre_exec = cu.pre_exec + ['echo 2 | trjconv -f fit_aa.gro -s fit_aa.gro -o fit.gro &>/dev/null']
-            cu.pre_exec = cu.pre_exec + ['echo 2 | trjconv -f confall.gro -s confall.gro -o embed.gro &>/dev/null']
-            cu.input_staging = [settings.inifile, 'fit/fit_aa.gro', 'fit/fit.ev', 'confall.gro']
-        elif config.uniform_sampling == 0:
-            cu.input_staging = [settings.inifile, 'fit/fit.gro', 'fit/fit.ev', 'confall.gro > embed.gro']
+        cu.input_staging = [settings.inifile, 'fit/fit.gro', 'fit/fit.ev', 'confall.gro > embed.gro']
         cu.executable = 'rbffit -f ' + settings.inifile + ' -c fit.gro -v fit.ev --embed embed.gro ' + dcs_options
-        cu.output_staging = ['fit.w > fit/fit.w', 'fit.sig > fit/fit.sig', 'fit.embed > confall.ev.embed', 'fit.gro > fit/fit.gro']
-        if config.uniform_sampling == 1:
-            cu.output_staging.extend(['embed.gro > fit/embed.gro'])
+        cu.output_staging = ['fit.w > fit/fit.w', 'fit.sig > fit/fit.sig', 'fit.embed > confall.ev.embed']
              
         cu.mpi = True
         cu.cores = settings.cores
@@ -355,22 +332,30 @@ class DMapSamplingWorker(object):
             dcs = dcs[:,np.newaxis]
         logging.info("Pick new configurations for the next iteration.")
 
-        nvalues = dcs.shape[0]
-        nnebins = int(5*nvalues**(1./2))
-        nbins_min = int(nvalues**(1./(2*ndcs)))
-        nbins_max = int(nvalues**(1./2))
-        bins, grid = tools.do_grid_optimized(dcs, nnebins, nbins_min, nbins_max, nextrabins=0)
+        if config.uniform_sampling == 1: # select uniformly the configurations in the DC space
+            nvalues = dcs.shape[0]
+            nnebins = int(5*nvalues**(1./2))
+            nbins_min = int(nvalues**(1./(2*ndcs)))
+            nbins_max = int(nvalues**(1./2))
+            bins, grid = tools.do_grid_optimized(dcs, nnebins, nbins_min, nbins_max, nextrabins=0)
 
-        npreselect = min(dcs.shape[0], 500)
-        if settings.nreplicas < npreselect:
-            # preselection
-            idxs_preselect = tools.pick_points_from_grid(grid, npreselect)
-            # selection
-            idxs_new_coords = tools.pick_points_optimized(dcs, settings.nreplicas, idxs_preselect=idxs_preselect)
-        else:
-            idxs_new_coords = tools.pick_points_from_grid(grid, settings.nreplicas)
+            npreselect = min(dcs.shape[0], 500)
+            if settings.nreplicas < npreselect:
+                # preselection
+                idxs_preselect = tools.pick_points_from_grid(grid, npreselect)
+                # selection
+                idxs_new_coords = tools.pick_points_optimized(dcs, settings.nreplicas, idxs_preselect=idxs_preselect)
+            else:
+                idxs_new_coords = tools.pick_points_from_grid(grid, settings.nreplicas)
+        elif config.uniform_sampling == 0: # take the last configurations of each traj as the new starting points
+            idxs_new_coords = [(idx + config.nstride -1) for idx in range(0,config.nvalues,config.nstride)]
 
-        new_coords = self.coords_all[idxs_new_coords]
+        # read .gro file containing the configurations with all atoms
+        # TODO: find a faster way to copy specific configurations from confall_aa.gro 
+        gr = reader.open('confall_aa.gro')
+        coords_aa_all = gr.readlines()
+        new_coords = coords_aa_all[idxs_new_coords]
+        gr.close()
 
         logging.info('Save new configurations in output.gro')
         # save new coordinates
