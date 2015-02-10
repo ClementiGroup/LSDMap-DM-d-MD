@@ -350,17 +350,27 @@ class DMapSamplingWorker(object):
         elif config.uniform_sampling == 0: # take the last configurations of each traj as the new starting points
             idxs_new_coords = [(idx + config.nstride -1) for idx in range(0,config.nvalues,config.nstride)]
 
-        # read .gro file containing the configurations with all atoms
-        # TODO: find a faster way to copy specific configurations from confall_aa.gro 
-        gr = reader.open('confall_aa.gro')
-        coords_aa_all = gr.readlines()
-        new_coords = coords_aa_all[idxs_new_coords]
-        gr.close()
+        # sort elements of the list
+        idxs_new_coords.sort()
 
+        # get the number of atoms from startgro
+        f = open(settings.startgro, 'r')
+        f.next()
+        natoms = int(f.next())
+        f.close()
+
+        shift = 0
         logging.info('Save new configurations in output.gro')
-        # save new coordinates
-        gw = writer.open('.gro', pattern=settings.startgro)
-        gw.write(new_coords, 'output.gro')
+        with open('output.gro', 'w') as outfile:
+            with open('confall_aa.gro', 'r') as infile:
+                for idx in idxs_new_coords:
+                    # skip lines before the next configuration selected
+                    for jdx in range((natoms+3)*(idx-shift)):
+                        a=infile.next()
+                    # print the configuration selected
+                    for jdx in range((natoms+3)):
+                        print >> outfile, infile.next().replace("\n", "")
+                    shift = idx+1
 
         # save dcs of new points (check)
         np.savetxt('output.ev', dcs[idxs_new_coords], fmt='%.18e')
