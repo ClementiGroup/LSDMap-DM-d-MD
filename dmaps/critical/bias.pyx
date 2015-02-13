@@ -48,7 +48,7 @@ cdef public DMSConfig* initDMSConfig(const char* file):
     dmsc.ndcs = config.getint('DMAPS', 'ndcs')
 
     # number of MD steps skipped for the computation of the bias potential
-    if config.has_option('nstepbias', 'DMAPS'):
+    if config.has_option('DMAPS', 'nstepbias'):
         dmsc.nstepbias = config.getint('DMAPS', 'nstepbias') # GP
     else:
         dmsc.nstepbias = 1
@@ -59,7 +59,7 @@ cdef public DMSConfig* initDMSConfig(const char* file):
     dmsc.kT = kb*temperature
 
     # fraction of the free energy we actually use for the bias potential
-    if config.has_option('fefrac', 'DMAPS'):
+    if config.has_option('DMAPS', 'fefrac'):
         dmsc.fefrac = config.getfloat('DMAPS', 'fefrac')
     else:
         dmsc.fefrac = 1.0

@@ -125,19 +125,19 @@ class DMapSamplingConfig(object):
         self.cutoff = ncutoff*self.kT
 
         # fraction of the free energy we actually use for the bias potential
-        if config.has_option('fefrac', 'DMAPS'):
+        if config.has_option('DMAPS', 'fefrac'):
             self.fefrac = config.getfloat('DMAPS', 'fefrac')
         else:
             self.fefrac = 1.0
 
         # number of bins used to compute the free energ histogram
-        if config.has_option('nbinsfe', 'DMAPS'):
+        if config.has_option('DMAPS', 'nbinsfe'):
             self.nbinsfe = config.getint('DMAPS', 'nbinsfe')
         else:
             self.nbinsfe = None
 
         # number of MD steps skipped for the computation of the bias potential
-        if config.has_option('nstepbias', 'DMAPS'):
+        if config.has_option('DMAPS', 'nstepbias'):
             self.nstepbias = config.getint('DMAPS', 'nstepbias') # GP
             nsave = self.nsteps/self.nstride
             if nsave%self.nstepbias != 0:
@@ -147,7 +147,7 @@ class DMapSamplingConfig(object):
             self.nstepbias = 1
 
         # check if uniform sampling is disabled when restarting
-        if config.has_option('uniform_sampling', 'DMAPS'):
+        if config.has_option('DMAPS', 'uniform_sampling'):
             self.uniform_sampling = config.getint('DMAPS', 'uniform_sampling')
             if self.uniform_sampling not in [0,1]:
                 raise ValueError("option uniform_sampling should be 0 or 1!")
@@ -161,8 +161,8 @@ class DMapSamplingConfig(object):
                 self.ntau_ctram = config.getint('CTRAM', 'ntau')
                 self.nstates_ctram = config.getint('CTRAM', 'nstates')
                 self.niters_ctram = config.getint('CTRAM', 'niters')
-                if config.has_option('nbins', 'CTRAM'):
-                    self.nbins_ctram = config.getint('nbins', 'CTRAM')
+                if config.has_option('CTRAM', 'nbins'):
+                    self.nbins_ctram = config.getint('CTRAM', 'nbins')
                 else:
                     self.nbins_ctram = None
                 # check if ntau is larger than nstride

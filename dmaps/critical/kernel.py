@@ -77,6 +77,7 @@ class DMapSamplingWorker(object):
     def run_md(self, umgr, settings, config):
 
         print "Preprocessing..."
+        print 'nbinsfe is', config.nbinsfe
         logging.info('Preprocessing MD...')
         self.do_preprocessing_md(settings)
 
