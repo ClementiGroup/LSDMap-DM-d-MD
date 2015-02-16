@@ -77,7 +77,6 @@ class DMapSamplingWorker(object):
     def run_md(self, umgr, settings, config):
 
         print "Preprocessing..."
-        print 'nbinsfe is', config.nbinsfe
         logging.info('Preprocessing MD...')
         self.do_preprocessing_md(settings)
 
@@ -143,6 +142,8 @@ class DMapSamplingWorker(object):
             logging.error('Number of coordinates in confall.gro (%i) and number of coordinates expected from config file (%i) do no match' \
                           %(self.coords_all.shape[0], npoints))
        
+        #logging.info('Select configurations for lsdmap completely random')
+        #idxs_lsdmap = random.sample(range(npoints), nlsdmap)
         if settings.iter == 0:
             idxs_lsdmap = random.sample(range(npoints), nlsdmap)
         else:
@@ -150,7 +151,7 @@ class DMapSamplingWorker(object):
             logging.info('Build histogram')
             dcs = np.loadtxt('confall.ev.embed.old')
             bins, grid = tools.do_grid(dcs, nbins)
-            logging.info('Select fitting points uniformly')
+            #logging.info('Select points for lsdmap uniformly')
             idxs_lsdmap = tools.pick_points_from_grid(grid, nlsdmap)
 
         self.coords_lsdmap = self.coords_all[idxs_lsdmap]
@@ -349,7 +350,8 @@ class DMapSamplingWorker(object):
             else:
                 idxs_new_coords = tools.pick_points_from_grid(grid, settings.nreplicas)
         elif config.uniform_sampling == 0: # take the last configurations of each traj as the new starting points
-            idxs_new_coords = [(idx + config.nstride -1) for idx in range(0,config.nvalues,config.nstride)]
+            #idxs_new_coords = [(idx + config.nstride -1) for idx in range(0,config.nvalues,config.nstride)]
+            idxs_new_coords = [(idx + config.nstride -1) for idx in range(0,config.nstride*settings.nreplicas,config.nstride)]
 
         # sort elements of the list
         idxs_new_coords.sort()
