@@ -8,7 +8,6 @@ import argparse
 import ConfigParser
 import logging
 import subprocess
-import radical.pilot
 import numpy as np
 
 from dmaps.tools import pilot
@@ -223,8 +222,8 @@ for idx in `seq 1 $nframes`; do
   sed "$start"','"$end"'!d' $startgro > $tmpstartgro
 
   # gromacs preprocessing & MD
-  grompp -f %(mdpfile)s -c $tmpstartgro -p %(topfile)s %(grompp_options)s &> /dev/null
-  mdrun -nt 1 -dms %(inifile)s -s topol.tpr %(mdrun_options)s &> mdrun.log
+  grompp -f ../../%(mdpfile)s -c $tmpstartgro -p ../../%(topfile)s %(grompp_options)s &> /dev/null
+  mdrun -nt 1 -dms ../../%(inifile)s %(mdrun_options)s &> mdrun.log
 
 done
 
@@ -339,23 +338,23 @@ class DMapSamplingExe(object):
                 self.restart(args)
             else:
                 self.restart_from_iter(settings.iter, args)
-        config = DMapSamplingConfig(settings) 
-        umgr, session = pilot.startPilot(settings)
+
+        config = DMapSamplingConfig(settings)
 
         # main loop
         for idx in xrange(settings.niters):
             logging.info("START ITERATION %i"%settings.iter)
+            print 'Iteration %i\n'%settings.iter
             # run biased MD
             dmapsworker = dmsk.DMapSamplingWorker()
-            dmapsworker.run_md(umgr, settings, config)
+            dmapsworker.run_md(settings, config)
             # run LSDMap and fit
-            dmapsworker.run_lsdmap(umgr, settings, config)
-            dmapsworker.run_fit(umgr, settings, config) # fit configurations of the current iteration
+            dmapsworker.run_lsdmap(settings, config)
+            dmapsworker.run_fit(settings, config) # fit configurations of the current iteration
             # compute the free energy
-            dmapsworker.do_free_energy(umgr, settings, config)
+            dmapsworker.do_free_energy(settings, config)
             # select the new configurations for the next iteration
             dmapsworker.select_new_points(settings, config)
             # update for next iteration
             settings.iter = self.update(args, settings, config)
-
-        session.close()
+            print '--------------------------------------------------'

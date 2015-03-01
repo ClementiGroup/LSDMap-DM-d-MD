@@ -8,7 +8,6 @@ import numpy as np
 import subprocess
 from math import sqrt, floor
 
-import radical.pilot
 from dmaps.tools import tools
 from dmaps.tools.config import known_pre_exec
 from dmaps.ctram import kernel as ctramk
@@ -44,7 +43,8 @@ class DMapSamplingWorker(object):
 
         with open('input.gro', 'r') as grofile:
             for idx in xrange(size):
-                grofile_thread =  'md/input%i.gro'%idx
+                os.mkdir('md/core%i'%idx)
+                grofile_thread = 'md/core%i/input.gro'%idx
                 with open(grofile_thread, 'w') as grofile_t:
                     nlines_per_thread = ncoords_per_thread[idx]*(natoms+3)
                     for jdx in xrange(nlines_per_thread):
@@ -64,52 +64,46 @@ class DMapSamplingWorker(object):
             files_md = files_md_iter0 + ['confall.ev']
           
         for filename in files_md:
-            name, ext = os.path.splitext(filename)
             with open(filename, 'w') as newfile:
                 for idx in range(settings.cores):
-                    with open('md/%s%i%s'%(name, idx, ext), 'r') as oldfile:
+                    oldfilename = 'md/core%i/'%idx+filename
+                    with open(oldfilename, 'r') as oldfile:
                         for line in oldfile:
                             print >> newfile, line.replace('\n', '')
+                    os.remove(oldfilename)
 
         if settings.iter > 0:
             subprocess.check_call('mv confall.ev confall.ev.embed.old', shell=True)
 
-    def run_md(self, umgr, settings, config):
+    def run_md(self, settings, config):
+
+        print "(1) Run biased MD simulations"
 
         print "Preprocessing..."
         logging.info('Preprocessing MD...')
         self.do_preprocessing_md(settings)
 
-        print 'Starting simulation...'
+        print 'Running...'
         logging.info('Running MD...')
-        cud_list = []
 
         tcpu1 = time.time()
+        units = set()
+        curdir = os.getcwd()
 
         for idx in xrange(settings.cores):
+            os.chdir(curdir+'/md/core%i'%idx)
 
-            cu = radical.pilot.ComputeUnitDescription()
-            cu.executable = "/bin/bash"
-            cu.arguments = "run.sh"
-            cu.pre_exec = known_pre_exec[settings.remote_host]
-            
-            cu.input_staging = ['run_md.sh > run.sh', 'md/input%i.gro > input.gro'%idx, settings.mdpfile, settings.topfile, settings.inifile]
-            if settings.iter > 0:
-                cu.input_staging.extend(['fe/bins.xyz', 'fe/hist.dat', 'fit/fit.gro', 'fit/fit.w', 'fit/fit.sig'])
-            cu.output_staging = ['confall.gro > md/confall%i.gro'%idx, 'confall_aa.gro > md/confall_aa%i.gro'%idx, 'confall.w > md/confall%i.w'%idx]
-            if settings.iter > 0:
-                cu.output_staging.extend(['confall.ev > md/confall%i.ev'%idx])
-            cu.cores = 1
-            cu.cleanup = True
+            # output files
+            file_err = open('STDOUT', 'w')
+            file_out = open('STDERR', 'w')
 
-            cud_list.append(cu)
-        units = umgr.submit_units(cud_list)
+            # run MD
+            p = subprocess.Popen("bash ../../run_md.sh", shell=True, stderr=file_err, stdout=file_out)
+            units.add(p.pid)
 
-        start_times = []
-        end_times = []
-
-        # Wait for all compute units to finish.
-        umgr.wait_units()
+        os.chdir(curdir)
+        for pid in units:
+            os.waitpid(pid, 0)
 
         logging.info('MD done')
         print "Postprocessing..."
@@ -117,11 +111,8 @@ class DMapSamplingWorker(object):
         self.do_postprocessing_md(settings)
 
         tcpu2 = time.time()
-        print 'Total Simulation Time : ', tcpu2 - tcpu1
-        for unit in units:
-            start_times.append(unit.start_time)
-            end_times.append(unit.stop_time)
-        print 'Simulation Execution Time : ', (max(end_times) - min(start_times)).total_seconds()
+        print 'Simulation Execution Time: ', tcpu2 - tcpu1
+        print
 
     def do_preprocessing_lsdmap(self, settings, config):
 
@@ -175,28 +166,33 @@ class DMapSamplingWorker(object):
         else:
             self.dcs_lsdmap = dcs[:,1:ndcs+1]
 
-    def run_lsdmap(self, umgr, settings, config):
+    def run_lsdmap(self, settings, config):
 
-        print 'Starting LSDMap'
+        print "(2) Run LSDMap"
         tcpu1 = time.time()
 
+        print 'Preprocessing...'
         logging.info('Preprocessing LSDMap...')
         self.do_preprocessing_lsdmap(settings, config)
         logging.info('LSDMap preprocessing done')
 
+        print 'Running...'
         logging.info('Starting LSDMap')
 
-        cu = radical.pilot.ComputeUnitDescription()
-        cu.pre_exec = known_pre_exec[settings.remote_host]
-        cu.input_staging = [settings.inifile, 'lsdmap/lsdmap.gro', 'lsdmap/lsdmap.w']
-        cu.executable = 'lsdmap -f ' + settings.inifile + ' -c lsdmap.gro -w lsdmap.w'
-        cu.output_staging = ['lsdmap.ev > lsdmap/lsdmap.ev', 'lsdmap.eg > lsdmap/lsdmap.eg', 'lsdmap.log > lsdmap/lsdmap.log']
-        cu.mpi = True
-        cu.cores = settings.cores
-        cu.cleanup = True
+        curdir = os.getcwd()
+        os.chdir('lsdmap')
 
-        unit = umgr.submit_units(cu)
-        unit.wait()
+        # output files
+        file_err = open('STDOUT', 'w')
+        file_out = open('STDERR', 'w')
+
+        #run
+        p = subprocess.Popen('mpiexec -n ' + str(settings.cores) + ' lsdmap -f ../' + settings.inifile + \
+            ' -c lsdmap.gro -w lsdmap.w', shell=True, stderr=file_err, stdout=file_out)
+        os.chdir(curdir)
+
+        # wait for all process to finish
+        os.waitpid(p.pid, 0)
 
         logging.info("LSDMap done")
         tcpu2 = time.time()
@@ -205,8 +201,8 @@ class DMapSamplingWorker(object):
         self.do_postprocessing_lsdmap(settings, config)
         logging.info('LSDMap postprocessing done')
 
-        print 'LSDMap Execution time : ',(unit.stop_time - unit.start_time).total_seconds()
         print 'Total Analysis time : ', tcpu2 - tcpu1
+        print
 
     def do_preprocessing_fit(self, settings, config):
 
@@ -244,54 +240,59 @@ class DMapSamplingWorker(object):
         logging.info('Write DCs in fit/fit.ev')
         np.savetxt('fit/fit.ev', np.hstack((np.ones((nfit,1)), dcs_fit)), fmt='%.18e')
 
-    def run_fit(self, umgr, settings, config):
+    def run_fit(self, settings, config):
 
-        print 'Starting Fitting'
+        print '(3) Fit LSDMap coordinates...'
         tcpu1 = time.time()
 
+        print 'Preprocessing...'
         logging.info("Preprocessing Fitting...")
         self.do_preprocessing_fit(settings, config)
         logging.info("Fit preprocessing done")
 
         dcs_options = '--dc ' + ' '.join([str(num+1) for num in xrange(config.ndcs)])
 
+        print 'Fitting...'
         logging.info('Starting Fitting')
-        cu = radical.pilot.ComputeUnitDescription()
-        cu.pre_exec = known_pre_exec[settings.remote_host]
-        cu.input_staging = [settings.inifile, 'fit/fit.gro', 'fit/fit.ev', 'confall.gro > embed.gro']
-        cu.executable = 'rbffit -f ' + settings.inifile + ' -c fit.gro -v fit.ev --embed embed.gro ' + dcs_options
-        cu.output_staging = ['fit.w > fit/fit.w', 'fit.sig > fit/fit.sig', 'fit.embed > confall.ev.embed']
-             
-        cu.mpi = True
-        cu.cores = settings.cores
-        cu.cleanup = True
+        curdir = os.getcwd()
+        os.chdir('fit')
 
-        unit = umgr.submit_units(cu)
-        unit.wait()
+        # output files
+        file_err = open('STDOUT', 'w')
+        file_out = open('STDERR', 'w')
+
+        # run fitting
+        p = subprocess.Popen('mpiexec -n ' + str(settings.cores) + ' rbffit -f ../' + settings.inifile + \
+            ' -c fit.gro -v fit.ev --embed ../confall.gro ' + dcs_options, shell=True, stderr=file_err, stdout=file_out)
+
+        os.chdir(curdir)
+        # wait for all process to finish
+        os.waitpid(p.pid, 0)
+        subprocess.check_call('mv fit/fit.embed confall.ev.embed', shell=True)
 
         logging.info("Fitting done")
         tcpu2 = time.time()
 
-        print 'Fitting Execution time : ',(unit.stop_time - unit.start_time).total_seconds()
         print 'Total Analysis time : ', tcpu2 - tcpu1
+        print
 
-    def do_free_energy(self, umgr, settings, config):
+    def do_free_energy(self, settings, config):
 
         ndcs = config.ndcs
         cutoff = config.cutoff
         kT = config.kT
 
         if config.isctram == 1 and settings.iter > 0:
-            print 'Starting cTRAM procedure'
+            print '(4) Compute the free energy (cTRAM)'
             ctramworker = ctramk.CTRAM4DMapSConfig(settings, config) # create ctram worker
-            ctramworker.embed_configurations(umgr, settings) # compute the DC's needed
+            ctramworker.embed_configurations(settings) # compute the DC's needed
             ctramworker.prepare_inputs(config) # prepare input data to use cTRAM (traj_total_mem, N_mem, count_matrices...)
-            ctramworker.do_ctram(umgr, settings) # do cTRAM
+            ctramworker.do_ctram(settings, config) # do cTRAM
             bins = ctramworker.bins
             grid = ctramworker.grid
             weight = np.exp(ctramworker.log_weight)
         else:
-            print 'Starting Free Energy Estimate'
+            print '(4) Compute the free energy (histogram)'
             dcs = np.loadtxt('confall.ev.embed')
             if ndcs == 1:
                 dcs = dcs[:,np.newaxis]
@@ -324,9 +325,11 @@ class DMapSamplingWorker(object):
         np.savetxt('fe/hist.dat', np.vstack(nebins + (np.array(nebins_s), free_energy_grid[nebins],) + tuple([grads[idx][nebins] for idx in range(ndcs)])).T,
                    fmt=" ".join(["%6.1i" for idx in range(ndcs)]) + " " + "%10.1i %.18e " + " ".join(["%.18e" for idx in range(ndcs)]))
         np.savetxt('fe/bins.xyz', bins, fmt='%.18e')
+        print
 
     def select_new_points(self, settings, config):
 
+        print '(5) Select new points'
         # take only the dcs of the last iteration
         dcs = np.loadtxt('confall.ev.embed')
         ndcs = config.ndcs

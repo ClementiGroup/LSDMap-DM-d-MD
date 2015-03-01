@@ -71,11 +71,11 @@ cdef public FEHist* initFEHist(DMSConfig *dmsc, const char* file):
 
     if dmsc.isfirst == 0:
 
-        bins = np.loadtxt('bins.xyz')
+        fedir = '../../fe'
+        bins = np.loadtxt(fedir + '/bins.xyz')
         feh.nbins = bins.shape[0]
 
-        hfile = 'hist.dat'
-        histo = np.loadtxt(hfile)
+        histo = np.loadtxt(fedir + '/hist.dat')
         nebins_idxs = histo[:,:dmsc.ndcs].astype(int)
         nebins_idxs_s = histo[:,dmsc.ndcs].astype(int)
         free_energy = histo[:,dmsc.ndcs+1]
@@ -142,7 +142,8 @@ cdef public Fit* initFit(DMSConfig *dmsc, const char* file):
         npoints = config.getint('FITTING', 'npoints')
 
         # load configs
-        grofile = 'fit.gro'
+        fitdir = '../../fit'
+        grofile = fitdir + '/fit.gro'
         rg = reader.open(grofile) # reader .gro file
         coordsfit = rg.readlines()
 
@@ -151,7 +152,7 @@ cdef public Fit* initFit(DMSConfig *dmsc, const char* file):
         natoms = coordsfit.shape[2] # number of atoms
 
         # load weights
-        wfile = 'fit.w'
+        wfile = fitdir + '/fit.w'
         weightsfit = np.loadtxt(wfile, dtype="f8")
         if dmsc.ndcs == 1:
             weightsfit = weightsfit[:,np.newaxis]
@@ -160,7 +161,7 @@ cdef public Fit* initFit(DMSConfig *dmsc, const char* file):
         check_parameter(weightsfit.shape[1], dmsc.ndcs, 'ndcs',  wfile)
 
         # load sigma values
-        sigfile = 'fit.sig'
+        sigfile = fitdir + '/fit.sig'
         sigmafit = np.loadtxt(sigfile, dtype="f8")
         if dmsc.ndcs == 1:
             sigmafit = sigmafit[:,np.newaxis]
