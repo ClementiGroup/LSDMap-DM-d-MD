@@ -209,18 +209,17 @@ cdef public BiasedMD* initBiasedMD(DMSConfig *dmsc, const char* file):
     cdef unsigned int idx
     cdef int natoms
     # list of heavy atoms
-    heavy_atoms = ['C', 'N', 'O', 'P', 'S']
+    water_and_ions = ['OW', 'NA', 'CL']
     heavy_atoms_idxs = []
-
+ 
     f = open('tmp.gro', 'r')
     f.next()
     natoms = int(f.next())
     for atom_idx, line in it.izip(xrange(natoms), f):
         atoms = line[8:15].lstrip()
-        if not 'W' in atoms: # check if atoms are not from water molecules
-            # check if atoms are in the list of heavy atoms
-            if any([atom in atoms for atom in heavy_atoms]):
-               heavy_atoms_idxs.append(atom_idx)
+        # check if not an hydrogen atom, not water and not an ion
+        if atoms[0] != 'H' and atoms not in water_and_ions:
+            heavy_atoms_idxs.append(atom_idx)
     f.close()
 
     # update number of heavy atoms
@@ -247,6 +246,7 @@ cdef public int do_biased_force(BiasedMD *bs, DMSConfig *dmsc, Fit *ft, FEHist *
     cdef double* dcs = <double *>malloc(dmsc.ndcs*sizeof(double))
 
     cdef np.ndarray[np.float64_t,ndim=2] coord = np.zeros((3, natoms))
+    cdef np.ndarray[np.float64_t,ndim=2] vel = np.zeros((3, natoms))
     cdef np.ndarray[np.float64_t,ndim=2] coord_heavy_atoms = np.zeros((3, nheavy_atoms))
     cdef np.ndarray[np.float64_t,ndim=2] force_heavy_atoms = np.zeros((3, nheavy_atoms))
 
@@ -255,6 +255,10 @@ cdef public int do_biased_force(BiasedMD *bs, DMSConfig *dmsc, Fit *ft, FEHist *
         for kdx in xrange(natoms):
             coord[jdx,kdx] = float(bs.coord[jdx+3*kdx])
 
+    for jdx in xrange(3):
+        for kdx in xrange(natoms):
+            vel[jdx,kdx] = float(bs.vel[jdx+3*kdx])
+
     # select only heavy atoms to compute the biased force
     heavy_atoms_idxs = [bs.heavy_atoms_idxs[idx] for idx in xrange(bs.nheavy_atoms)]
     coord_heavy_atoms  = coord[:,heavy_atoms_idxs]
@@ -262,7 +266,7 @@ cdef public int do_biased_force(BiasedMD *bs, DMSConfig *dmsc, Fit *ft, FEHist *
     # store configuration and weight after nsave steps
     nsave = max(bs.nsteps/dmsc.nstride, 1) # in dms.py, we already check if nsteps is a multiple of nstride 
     if bs.step%nsave == 0 and bs.step > 0:
-        save_data(coord, heavy_atoms_idxs, bs, dmsc)
+        save_data(coord, vel, heavy_atoms_idxs, bs, dmsc)
 
     # compute biased force if not first iteration
     if dmsc.isfirst == 0:
@@ -381,11 +385,11 @@ cdef int do_biased_force_low_level(int natoms, np.ndarray[np.float64_t,ndim=2] c
 
     return 0
 
-cdef int save_data(np.ndarray[np.float64_t,ndim=2] coord, heavy_atoms_idxs, BiasedMD *bs, DMSConfig *dmsc):
+cdef int save_data(np.ndarray[np.float64_t,ndim=2] coord, np.ndarray[np.float64_t,ndim=2] vel, heavy_atoms_idxs, BiasedMD *bs, DMSConfig *dmsc):
 
     w = writer.open('.gro', pattern='tmp.gro')
-    w.write(coord, 'confall_aa.gro', mode='a') # write configurations with all atoms
-    w.write(coord, 'confall.gro', idxs_atoms=heavy_atoms_idxs, mode='a') # write configurations with heavy atoms
+    w.write(np.vstack((coord, vel)), 'confall_aa.gro', mode='a') # write configurations with all atoms
+    w.write(np.vstack((coord, vel)), 'confall.gro', idxs_atoms=heavy_atoms_idxs, mode='a') # write configurations with heavy atoms
     w.close()
 
     with open('confall.w', 'a') as wfile:

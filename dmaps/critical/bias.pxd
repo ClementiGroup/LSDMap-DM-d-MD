@@ -12,6 +12,7 @@ cdef public struct BiasedMD:
     #float* biasforce # value of the last applied biased force GP
     double* dcs # values of dcs
     float* coord # coordinates
+    float* vel # velocities
     float* force # force
 
 cdef public struct DMSConfig:
@@ -46,4 +47,4 @@ cdef extern from "math.h":
 
 cdef int do_biased_force_low_level(int natoms, np.ndarray[np.float64_t,ndim=2] coord, np.ndarray[np.float64_t,ndim=2] force, double* vbias, double* dcs, DMSConfig *dmsc, Fit *ft, FEHist *feh)
 
-cdef int save_data(np.ndarray[np.float64_t,ndim=2] coord, heavy_atoms_idxs, BiasedMD *bs, DMSConfig *dmsc)
+cdef int save_data(np.ndarray[np.float64_t,ndim=2] coord, np.ndarray[np.float64_t,ndim=2] vel, heavy_atoms_idxs, BiasedMD *bs, DMSConfig *dmsc)

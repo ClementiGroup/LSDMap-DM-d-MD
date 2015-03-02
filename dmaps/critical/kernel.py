@@ -70,7 +70,6 @@ class DMapSamplingWorker(object):
                     with open(oldfilename, 'r') as oldfile:
                         for line in oldfile:
                             print >> newfile, line.replace('\n', '')
-                    os.remove(oldfilename)
 
         if settings.iter > 0:
             subprocess.check_call('mv confall.ev confall.ev.embed.old', shell=True)
