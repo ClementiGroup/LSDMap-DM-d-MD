@@ -232,6 +232,10 @@ cdef public BiasedMD* initBiasedMD(DMSConfig *dmsc, const char* file):
 
     # allocate array of dcs (current iteration)
     bs.dcs = <double *>malloc(dmsc.ndcs*sizeof(double))
+    # allocate array for prev. config. and prev. force     GP
+    bs.store_coord = <float *>malloc(bs.nheavy_atoms*3*sizeof(float))     # GP
+    bs.store_biasforce = <float *>malloc(bs.nheavy_atoms*3*sizeof(float))     # GP
+    bs.HH = 0 # GP
 
     return &bs
 
@@ -241,6 +245,7 @@ cdef public int do_biased_force(BiasedMD *bs, DMSConfig *dmsc, Fit *ft, FEHist *
     cdef int natoms = bs.natoms
     cdef int nheavy_atoms = bs.nheavy_atoms
     cdef int nsave, nsavedcs
+    cdef float DeltaHH
 
     cdef double* vbias = <double *>malloc(sizeof(double))
     cdef double* dcs = <double *>malloc(dmsc.ndcs*sizeof(double))
@@ -270,20 +275,31 @@ cdef public int do_biased_force(BiasedMD *bs, DMSConfig *dmsc, Fit *ft, FEHist *
 
     # compute biased force if not first iteration
     if dmsc.isfirst == 0:
-         #if bs.step % dmsc.nstepbias == dmsc.nstepbias-1: # GP
-         #   bs.coord_prev = #save conf    # GP
-         #if bs.step % dmsc.nstepbias == 1:    # GP
-         #   print bs.force[0], bs.force[1], bs.force[3] # GP
-        if bs.step%dmsc.nstepbias == 0:
-            do_biased_force_low_level(nheavy_atoms, coord_heavy_atoms, force_heavy_atoms, vbias, dcs, dmsc, ft, feh)
-            for jdx in xrange(dmsc.ndcs):
-                bs.dcs[jdx] = dcs[jdx]
-            bs.vbias = vbias[0]
+         # save config. of heavy atoms at time step previous to application of bias force # GP
+         if bs.step % dmsc.nstepbias == dmsc.nstepbias-1:      # GP
+             for idx in xrange(3):                             # GP
+                 for jdx in xrange(len(heavy_atoms_idxs)):             # GP
+                     bs.store_coord[idx+3*jdx] = coord[idx,heavy_atoms_idxs[jdx]]    # GP
+         # compute monitor quantity at step subsequent to application of bias force 
+         if (bs.step % dmsc.nstepbias == 1 and bs.step > 2*dmsc.nstepbias-1):    # GP
+             for idx in xrange(3):                             # GP                               
+                 for jdx in xrange(len(heavy_atoms_idxs)):             # GP                              
+                     bs.HH += (coord_heavy_atoms[idx,jdx]-bs.store_coord[idx+3*jdx])*bs.store_biasforce[idx+3*jdx]/2+(bs.vbias-bs.vbias_prev)
+             #print bs.HH # GP
 
-            #print bs.force[0], bs.force[1], bs.force[3], force[0][1]
-            for idx in xrange(3):
-                for jdx, atom_jdx in enumerate(heavy_atoms_idxs):
-                    bs.force[idx+3*atom_jdx] += force_heavy_atoms[idx][jdx]*dmsc.nstepbias
+         if bs.step % dmsc.nstepbias == 0:
+             do_biased_force_low_level(nheavy_atoms, coord_heavy_atoms, force_heavy_atoms, vbias, dcs, dmsc, ft, feh)
+             for jdx in xrange(dmsc.ndcs):
+                 bs.dcs[jdx] = dcs[jdx]
+             # save vbias before updating it   # GP
+             bs.vbias_prev =  bs.vbias         # GP
+             bs.vbias = vbias[0]
+
+             for idx in xrange(3):
+                 for jdx, atom_jdx in enumerate(heavy_atoms_idxs):
+                     bs.force[idx+3*atom_jdx] += force_heavy_atoms[idx][jdx]*dmsc.nstepbias
+                     # store only bias force   # GP
+                     bs.store_biasforce[idx+3*jdx] = force_heavy_atoms[idx][jdx]*dmsc.nstepbias # GP
             #print bs.force[0], bs.force[1], bs.force[3], force[0][1]
     else:
         bs.vbias = 0.0
