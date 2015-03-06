@@ -7,7 +7,7 @@ cdef public struct BiasedMD:
     int nsteps # number of steps
     int* heavy_atoms_idxs # indices of heavy atoms
     double vbias # value of the bias potential GP
-    double* vbias_prev # value of last calculated bias potential for multiple timestep monitoring GP
+    double vbias_prev # value of last calculated bias potential for multiple timestep monitoring GP
     float* store_coord # coordinates at timestep previous to application of bias potential GP
     float* store_biasforce # value of the last applied biased force GP
     float HH # value of integral monitor quantity for mult. timestep GP
