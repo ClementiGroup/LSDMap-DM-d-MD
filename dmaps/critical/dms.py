@@ -2,6 +2,7 @@ import os
 import sys
 import time
 import imp
+import stat
 import glob
 import shutil
 import argparse
@@ -10,7 +11,6 @@ import logging
 import subprocess
 import numpy as np
 
-from dmaps.tools import pilot
 from dmaps.tools.config import platforms
 from dmaps.critical import kernel as dmsk
 
@@ -189,6 +189,12 @@ class DMapSamplingConfig(object):
             logging.error(".top file does not exist:" + topfile)
             raise IOError(".top file does not exist:" + topfile)
 
+        # check topfile
+        if hasattr(settings, "ndxfile"):
+            ndxfile_option="-n ../../" + settings.ndxfile
+        else:
+            ndxfile_option = ""
+
         # check grompp and mdrun options
         if hasattr(settings, "grompp_options"):
             grompp_options = settings.grompp_options
@@ -222,7 +228,7 @@ for idx in `seq 1 $nframes`; do
   sed "$start"','"$end"'!d' $startgro > $tmpstartgro
 
   # gromacs preprocessing & MD
-  grompp -f ../../%(mdpfile)s -c $tmpstartgro -p ../../%(topfile)s %(grompp_options)s &> /dev/null
+  grompp -f ../../%(mdpfile)s -c $tmpstartgro -p ../../%(topfile)s %(ndxfile_option)s %(grompp_options)s &> grompp.log
   mdrun -nt 1 -dms ../../%(inifile)s %(mdrun_options)s &> mdrun.log
 
 done
@@ -232,6 +238,7 @@ rm -f $tmpstartgro
         """ % locals()
             file.write(script)
 
+        os.chmod(filename, stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IROTH | stat.S_IXUSR)
 
 class DMapSamplingExe(object):
 

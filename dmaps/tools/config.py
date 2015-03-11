@@ -33,18 +33,5 @@ platforms = {
 # 'outgro' : ('output.gro', 'temporary .gro file created at the end of dmaps iteration'),
 # 'outev' : ('output.ev', '.ev file created at the end of dmaps iteration'),
 
-
-# known pre executables for radical pilot
-stampede_pre_exec = ["module load -intel intel/14.0.1.106", "module load python",
-"PYTHONPATH=$PYTHONPATH:/opt/apps/intel14/mvapich2_2_0/python/2.7.6/lib/python2.7",
-"PYTHONPATH=$PYTHONPATH:/opt/apps/intel14/mvapich2_2_0/python/2.7.6/lib/python2.7/site-packages",
-"PYTHONPATH=$PYTHONPATH:$HOME/.local/lib/python2.7/site-packages","export PYTHONPATH"]
-
-davinci_pre_exec = []
-biou_pre_exec = []
-localhost_pre_exec = []
-
-known_pre_exec = {"stampede.tacc.utexas.edu": stampede_pre_exec, "rice.davinci": davinci_pre_exec, "rice.biou": biou_pre_exec, "localhost": localhost_pre_exec}
-
 # known parameters (parameter name, section name, tag name)
 known_prms = {'ndcs': ('ndcs', 'DMAPS', 'columns'), 'nfit': ('npoints', 'FITTING', 'configs')}

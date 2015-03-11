@@ -8,7 +8,7 @@ from distutils.core import Extension
 from distutils.sysconfig import get_python_lib
 
 min_numpy_version = '1.4.1'
-min_scipy_version = '0.10.0'
+min_scipy_version = '0.9.0'
 min_mpi4py_version = '1.0'
 min_cython_version = '0.20'
 

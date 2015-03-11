@@ -9,7 +9,6 @@ import subprocess
 from math import sqrt, floor
 
 from dmaps.tools import tools
-from dmaps.tools.config import known_pre_exec
 from dmaps.ctram import kernel as ctramk
 from lsdmap.rw import reader
 from lsdmap.rw import writer
@@ -54,6 +53,7 @@ class DMapSamplingWorker(object):
                             print >> grofile_t, line
                         else:
                             break
+
 
     def do_postprocessing_md(self, settings):
 
