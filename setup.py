@@ -66,7 +66,7 @@ def check_import(pkgname, pkgver):
 
 check_import('numpy', min_numpy_version)
 check_import('scipy', min_scipy_version)
-#check_import('mpi4py', min_mpi4py_version)
+check_import('mpi4py', min_mpi4py_version)
 #check_import('cython', min_cython_version)
 
 import numpy as np
@@ -114,7 +114,7 @@ ext_modules = [Extension(
 
 setup(name='lsdmap',
       packages=['lsdmap', 'lsdmap.mpi', 'lsdmap.rw', 'lsdmap.util', 'lsdmap.rbf', 'dmdmd', 'dmdmd.tools', 'dmaps', 'dmaps.critical', 'dmaps.tools', 'dmaps.ctram'],
-      scripts = ['bin/lsdmap','bin/dmdmd', 'bin/dmaps', 'bin/rbffit','bin/reweighting','bin/selection','bin/p_mdrun'],
+      scripts = ['bin/lsdmap','bin/dmdmd', 'bin/dmaps', 'bin/rbffit','bin/reweighting','bin/selection','bin/p_mdrun', 'bin/p_mdrun_d'],
       ext_modules = cythonize(ext_modules),
       cmdclass = cmdclass,
       license='LICENSE.txt',

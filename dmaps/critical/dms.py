@@ -317,6 +317,7 @@ class DMapSamplingExe(object):
         parser.add_argument("-f", type=str, dest="setfile", required=True, help='File containing settings (input): -')
         parser.add_argument("--restart", action="store_true", dest="restart", default=False, help='restart from scratch')
         parser.add_argument("--checkpoint", type=int, dest="num_iter", help='restart from a given iteration')
+        parser.add_argument("--skipmd", action="store_true", dest="skipmd", default=False, help='skip first MD simulations')
 
         args = parser.parse_args()
 
@@ -330,13 +331,22 @@ class DMapSamplingExe(object):
             self.restart(args)
             if args.num_iter is not None:
                 logging.error("checkpoint option can not be set together with restart option")
+                raise ValueError("checkpoint option can not be set together with restart option")
+            if args.skipmd:
+                logging.error("skipmd option can not be set together with restart option")
+                raise ValueError("skipmd option can not be set together with restart option")
         elif args.num_iter is not None:
             if args.num_iter == 0:
                 logging.error("checkpoint option can not be set to 0, use restart option instead")
             elif args.num_iter > 0:
                 self.restart_from_iter(args.num_iter, args)
+                if args.skipmd:
+                    logging.error("skipmd option can not be set together with checkpoint option")
+                    raise ValueError("skipmd option can not be set together with checkpoint option")
             else:
                 logging.error("argument of checkpoint option should be a positive integer (iteration number to restart from)")
+                raise ValueError("argument of checkpoint option should be a positive integer (iteration number to restart from)")
+                
 
         settings = imp.load_source('setfile', args.setfile)
         # if restart or checkpoint options are disabled, restart from the iteration specified in settings
@@ -354,7 +364,8 @@ class DMapSamplingExe(object):
             print 'Iteration %i\n'%settings.iter
             # run biased MD
             dmapsworker = dmsk.DMapSamplingWorker()
-            dmapsworker.run_md(settings, config)
+            if idx == 0 and args.skipmd: pass
+            else: dmapsworker.run_md(settings, config)
             # run LSDMap and fit
             dmapsworker.run_lsdmap(settings, config)
             dmapsworker.run_fit(settings, config) # fit configurations of the current iteration

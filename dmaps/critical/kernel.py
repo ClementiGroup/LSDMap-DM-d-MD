@@ -89,20 +89,7 @@ class DMapSamplingWorker(object):
         units = set()
         curdir = os.getcwd()
 
-        for idx in xrange(settings.cores):
-            os.chdir(curdir+'/md/core%i'%idx)
-
-            # output files
-            file_err = open('STDOUT', 'w')
-            file_out = open('STDERR', 'w')
-
-            # run MD
-            p = subprocess.Popen("bash ../../run_md.sh", shell=True, stderr=file_err, stdout=file_out)
-            units.add(p.pid)
-
-        os.chdir(curdir)
-        for pid in units:
-            os.waitpid(pid, 0)
+        subprocess.check_call("mpiexec -n %i p_mdrun_d"%settings.cores, shell=True)
 
         logging.info('MD done')
         print "Postprocessing..."
@@ -180,18 +167,9 @@ class DMapSamplingWorker(object):
 
         curdir = os.getcwd()
         os.chdir('lsdmap')
-
-        # output files
-        file_err = open('STDOUT', 'w')
-        file_out = open('STDERR', 'w')
-
-        #run
-        p = subprocess.Popen('mpiexec -n ' + str(settings.cores) + ' lsdmap -f ../' + settings.inifile + \
-            ' -c lsdmap.gro -w lsdmap.w', shell=True, stderr=file_err, stdout=file_out)
+        p = subprocess.check_call('mpiexec -n ' + str(settings.cores) + ' lsdmap -f ../' + settings.inifile \
+             + ' -c lsdmap.gro -w lsdmap.w', shell=True)
         os.chdir(curdir)
-
-        # wait for all process to finish
-        os.waitpid(p.pid, 0)
 
         logging.info("LSDMap done")
         tcpu2 = time.time()
@@ -261,12 +239,10 @@ class DMapSamplingWorker(object):
         file_out = open('STDERR', 'w')
 
         # run fitting
-        p = subprocess.Popen('mpiexec -n ' + str(settings.cores) + ' rbffit -f ../' + settings.inifile + \
-            ' -c fit.gro -v fit.ev --embed ../confall.gro ' + dcs_options, shell=True, stderr=file_err, stdout=file_out)
+        subprocess.check_call('mpiexec -n ' + str(settings.cores) + ' rbffit -f ../' + settings.inifile + \
+            ' -c fit.gro -v fit.ev --embed ../confall.gro ' + dcs_options, shell=True)
 
         os.chdir(curdir)
-        # wait for all process to finish
-        os.waitpid(p.pid, 0)
         subprocess.check_call('mv fit/fit.embed confall.ev.embed', shell=True)
 
         logging.info("Fitting done")
@@ -352,7 +328,6 @@ class DMapSamplingWorker(object):
             else:
                 idxs_new_coords = tools.pick_points_from_grid(grid, settings.nreplicas)
         elif config.uniform_sampling == 0: # take the last configurations of each traj as the new starting points
-            #idxs_new_coords = [(idx + config.nstride -1) for idx in range(0,config.nvalues,config.nstride)]
             idxs_new_coords = [(idx + config.nstride -1) for idx in range(0,config.nstride*settings.nreplicas,config.nstride)]
 
         # sort elements of the list
