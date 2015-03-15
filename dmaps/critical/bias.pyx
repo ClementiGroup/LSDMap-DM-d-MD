@@ -216,10 +216,12 @@ cdef public BiasedMD* initBiasedMD(DMSConfig *dmsc, const char* file):
     f.next()
     natoms = int(f.next())
     for atom_idx, line in it.izip(xrange(natoms), f):
+        amino_acid = line[0:9].strip()
         atoms = line[9:15].lstrip()
+        if "CXH" not in amino_acid:
         # check if not an hydrogen atom, not water and not an ion
-        if atoms[0] != 'H' and atoms not in water_and_ions:
-            heavy_atoms_idxs.append(atom_idx)
+            if atoms[0] != 'H' and atoms not in water_and_ions:
+                heavy_atoms_idxs.append(atom_idx)
     f.close()
 
     # update number of heavy atoms
@@ -270,7 +272,8 @@ cdef public int do_biased_force(BiasedMD *bs, DMSConfig *dmsc, Fit *ft, FEHist *
 
     # store configuration and weight after nsave steps
     nsave = max(bs.nsteps/dmsc.nstride, 1) # in dms.py, we already check if nsteps is a multiple of nstride 
-    if bs.step%nsave == 0 and bs.step > 0:
+    if bs.step%nsave == 0:
+    #if bs.step%nsave == 0 and bs.step > 0:
         save_data(coord, vel, heavy_atoms_idxs, bs, dmsc)
 
     # compute biased force if not first iteration

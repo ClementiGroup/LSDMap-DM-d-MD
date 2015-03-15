@@ -194,8 +194,8 @@ class Writer(object):
 
     fmt = {'numatoms': "%5d\n",   # number of atoms
                # coordinates output format, see http://chembytes.wikidot.com/g-grofile
-               'xyz': "%8s%7s%5s%8.3f%8.3f%8.3f\n",                  # coordinates only
-               'xyz_v': "%8s%7s%5s%8.3f%8.3f%8.3f%8.4f%8.4f%8.4f\n", # coordinates and velocities
+               'xyz': "%9s%6s%5s%8.3f%8.3f%8.3f\n",                  # coordinates only
+               'xyz_v': "%9s%6s%5s%8.3f%8.3f%8.3f%8.4f%8.4f%8.4f\n", # coordinates and velocities
                # unitcell
                }
 
