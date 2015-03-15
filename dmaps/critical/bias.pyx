@@ -216,7 +216,7 @@ cdef public BiasedMD* initBiasedMD(DMSConfig *dmsc, const char* file):
     f.next()
     natoms = int(f.next())
     for atom_idx, line in it.izip(xrange(natoms), f):
-        atoms = line[8:15].lstrip()
+        atoms = line[9:15].lstrip()
         # check if not an hydrogen atom, not water and not an ion
         if atoms[0] != 'H' and atoms not in water_and_ions:
             heavy_atoms_idxs.append(atom_idx)

@@ -42,11 +42,11 @@ class Reader(object):
 
     @property
     def residues(self):
-        return self._read_column(0, 8)
+        return self._read_column(0, 9)
 
     @property
     def atoms(self):
-        return self._read_column(8, 15)
+        return self._read_column(9, 15)
 
     @property
     def atoms_nums(self):
