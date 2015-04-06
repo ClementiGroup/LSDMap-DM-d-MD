@@ -165,7 +165,7 @@ class RbfExe(object):
 
         # load configurations
         format_struct_file = os.path.splitext(args.struct_file[0])[1]
-	if format_struct_file == '.gro': # use lsdmap reader
+        if format_struct_file == '.gro': # use lsdmap reader
             struct_file = reader.open(args.struct_file)
             self.npoints = struct_file.nlines
 
@@ -360,7 +360,7 @@ class RbfExe(object):
                 # use distance matrix computed before
                 distance_matrix = fit.distance_matrix
                 for dc_order in args.dc_orders[1:]:
-	            logging.info('Start fitting procedure along DC %i'%dc_order)
+                    logging.info('Start fitting procedure along DC %i'%dc_order)
                     fit = RbfFit(comm, self.coords, self.values[:,dc_order], distance_matrix=distance_matrix, metric=self.metric,
                                  fit=self.function, sigma=self.sigma, ksigma=self.ksigma)
                     logging.info('Fitting along DC %i done'%dc_order)
