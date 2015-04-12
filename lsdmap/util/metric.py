@@ -169,7 +169,7 @@ class DistanceMatrix(object):
 
         matrix = np.zeros((self.ncoords1, self.ncoords2))
         for idx, coord1 in enumerate(self.coords1):
-	    for jdx, coord2 in enumerate(self.coords2):
+            for jdx, coord2 in enumerate(self.coords2):
                 matrix[idx, jdx] = self.metric(coord1, coord2)
 
         #matrix = np.array([[self.metric(coord1, coord2) for coord2 in self.coords2]
