@@ -205,8 +205,10 @@ class LSDMap(object):
             struct_filename = self.struct_filename
 
         path, ext = os.path.splitext(struct_filename)
-        np.savetxt(path + '.eg', np.fliplr(self.eigs[np.newaxis]), fmt='%9.6f')
-        np.savetxt(path + '.ev', np.fliplr(self.evs), fmt='%.18e')
+        #np.savetxt(path + '.eg', np.fliplr(self.eigs[np.newaxis]), fmt='%9.6f')
+        #np.savetxt(path + '.ev', np.fliplr(self.evs), fmt='%.18e')
+        np.save(path + '_eg.npy', np.fliplr(self.eigs[np.newaxis]))
+        np.save(path + '_ev.npy', np.fliplr(self.evs))
 
         if args.output_file is None:
             try:
@@ -270,13 +272,13 @@ class LSDMap(object):
                 os.remove(args.dmfile)
             except OSError:
                 pass
-            dmfile = open(args.dmfile, 'a')
+            dmfile = open(args.dmfile, 'a+b')
             for idx in xrange(size):
                 if idx == 0:
                     distance_matrix = distance_matrix_thread
                 else:
                     distance_matrix = comm.recv(source=idx, tag=idx)
-                np.savetxt(dmfile, distance_matrix)
+                np.save(dmfile, distance_matrix)
             dmfile.close()
         else:
             comm.send(distance_matrix_thread, dest=0, tag=rank)
