@@ -27,7 +27,7 @@ class LSDMap(object):
         self.struct_filename = struct_file.filename
         self.npoints = struct_file.nlines
 
-        self.idxs_thread = p_index.get_idxs_thread(comm, self.npoints)
+        self.idxs_thread = p_index.get_idxs_thread_v(comm, self.npoints)
 
         if hasattr(struct_file, '_skip'): # multi-thread reading
             coords_thread = struct_file.readlines(self.idxs_thread)
