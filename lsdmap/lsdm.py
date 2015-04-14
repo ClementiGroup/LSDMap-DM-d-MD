@@ -26,12 +26,17 @@ class LSDMap(object):
         struct_file = reader.open(args.struct_file)
         self.struct_filename = struct_file.filename
         self.npoints = struct_file.nlines
+        self.natoms = struct_file.natoms
 
-        self.idxs_thread = p_index.get_idxs_thread(comm, self.npoints)
-
-        if hasattr(struct_file, '_skip'): # multi-thread reading
+        self.idxs_thread,npoints_thread = p_index.get_idxs_thread(comm, self.npoints)
+        
+        if hasattr(struct_file, '_skip'): # multi-thread reading using ravel and Allgatherv
             coords_thread = struct_file.readlines(self.idxs_thread)
-            self.coords = np.vstack(comm.allgather(coords_thread))
+            coords_ravel = coords_thread.ravel()
+            ravel_lengths, ravel_offsets = p_index.get_ravel_offsets(npoints_thread,self.natoms)
+            coords = np.zeros(self.npoints*3*self.natoms, dtype=np.double)
+            comm.Allgatherv(coords_ravel, [coords, ravel_lengths, ravel_offsets, MPI.DOUBLE ])
+            coords_unravel = coords.reshape((self.npoints,3,self.natoms))
         else: # serial reading
             if rank == 0:
                 self.coords = struct_file.readlines()
