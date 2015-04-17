@@ -14,8 +14,8 @@ def get_idxs_thread(comm, npoints):
     size = comm.Get_size()
     rank = comm.Get_rank()
 
-    npoints_thread = np.zeros(size,dtype=np.int32)
-    offsets_thread = np.zeros(size,dtype=np.int32)
+    npoints_thread = np.zeros(size,dtype=np.intc)
+    offsets_thread = np.zeros(size,dtype=np.intc)
 
     for idx in range(size):
         npoints_thread[idx] = npoints/size
@@ -28,17 +28,17 @@ def get_idxs_thread(comm, npoints):
     npoints_thread = tuple(npoints_thread)
     offsets_thread = tuple(offsets_thread)
 
-    idxs_thread = np.zeros(npoints_thread[rank],dtype=np.int32)
-    idxs = np.arange(npoints,dtype=np.int32)
+    idxs_thread = np.zeros(npoints_thread[rank],dtype=np.intc)
+    idxs = np.arange(npoints,dtype=np.intc)
 
-    comm.Scatterv([idxs, npoints_thread, offsets_thread, MPI.INT], idxs_thread, root=0)
-    return idxs_thread, npoints_thread
+    comm.Scatterv((idxs, npoints_thread, offsets_thread, MPI.INT), idxs_thread, root=0)
+    return idxs_thread, npoints_thread, offsets_thread
 
 def get_ravel_offsets(npoints_thread,natoms):
     """ Get lengths and offsets for gathering trajectory fragments """
     size = len(npoints_thread)
-    ravel_lengths = np.zeros(size,dtype=np.int32)
-    ravel_offsets = np.zeros(size,dtype=np.int32)
+    ravel_lengths = np.zeros(size,dtype=np.intc)
+    ravel_offsets = np.zeros(size,dtype=np.intc)
 
     for i in range(size):
         ravel_lengths[i] = npoints_thread[i]*3*natoms

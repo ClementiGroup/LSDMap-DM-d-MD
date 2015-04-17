@@ -19,30 +19,53 @@ class LSDMap(object):
     def initialize(self, comm, config, args):
 
         rank = comm.Get_rank()
+        size = comm.Get_size()
 
         self.config = config
         self.args = args
+ 
+        #struct_file = reader.open(args.struct_file)
+        #self.struct_filename = struct_file.filename
+        #self.npoints = struct_file.nlines
+        #self.natoms = struct_file.natoms
 
-        struct_file = reader.open(args.struct_file)
-        self.struct_filename = struct_file.filename
-        self.npoints = struct_file.nlines
-        self.natoms = struct_file.natoms
+        self.struct_filename = args.struct_file[0]
+        self.npoints,self.natoms = reader.get_npoints_natoms(self.struct_filename)
 
-        self.idxs_thread,npoints_thread = p_index.get_idxs_thread(comm, self.npoints)
+        self.idxs_thread,self.npoints_per_thread,self.offsets_per_thread = p_index.get_idxs_thread(comm, self.npoints)
         
-        if hasattr(struct_file, '_skip'): # multi-thread reading using ravel and Allgatherv
-            coords_thread = struct_file.readlines(self.idxs_thread)
+        #if hasattr(struct_file, '_skip'): # multi-thread reading using ravel and Allgatherv
+        if size > 1: # multi-thread reading using ravel and Allgatherv
+            coords_thread = reader.get_coordinates(self.struct_filename, idxs=self.idxs_thread)
+            #coords_thread = struct_file.readlines(self.idxs_thread)
+            #coords_thread = np.random.rand(self.npoints_per_thread[rank],3,self.natoms).astype(float)
+            #if rank == 0:
+            #    print coords_thread.flags
+            #    print coords_thread[0].flags
+            #raise SystemExit
             coords_ravel = coords_thread.ravel()
-            ravel_lengths, ravel_offsets = p_index.get_ravel_offsets(npoints_thread,self.natoms)
-            coords = np.zeros(self.npoints*3*self.natoms, dtype=np.double)
-            comm.Allgatherv(coords_ravel, [coords, ravel_lengths, ravel_offsets, MPI.DOUBLE ])
-            coords_unravel = coords.reshape((self.npoints,3,self.natoms))
+            ravel_lengths, ravel_offsets = p_index.get_ravel_offsets(self.npoints_per_thread,self.natoms)
+            coordstemp = np.zeros(self.npoints*3*self.natoms, dtype='float')
+            #if rank == 0:
+            #    print ravel_lengths, ravel_offsets
+            start = MPI.Wtime()
+            comm.Allgatherv(coords_ravel, (coordstemp, ravel_lengths, ravel_offsets, MPI.DOUBLE))
+            print "Allgatherv  rank: ", rank, " ", MPI.Wtime() - start
+            self.coordsv = coordstemp.reshape((self.npoints,3,self.natoms))
+
+            start = MPI.Wtime()
+            self.coords = np.vstack(comm.allgather(coords_thread))
+            print "allgather   rank: ", rank, " ", MPI.Wtime() - start
+            
+            #if rank == 0:  # Are final arrays the same?
+            #    print np.allclose(self.coordsv,self.coords) # -> True
+            raise SystemExit
         else: # serial reading
             if rank == 0:
                 self.coords = struct_file.readlines()
             else:
-                self.coords = None
-            self.coords = comm.bcast(self.coords, root=0) 
+                self.coords = np.zeros((self.npoints,3,self.natoms),dtype=np.double)
+            self.coords = comm.Bcast(self.coords, root=0) 
 
         logging.info('input coordinates loaded')
 
@@ -135,19 +158,24 @@ class LSDMap(object):
         parser.add_argument("-o",
             type=str,
             dest="output_file",
-            help='Pickle file containing LSDMap object (output, opt.): p')
+            help='Filename to save pickled LSDMap object (output, opt.): p')
 
         parser.add_argument("-d",
             type=str,
             dest="dmfile",
-            help="File containing the distance matrix (output, opt.): .dm")
+            help="Filename to save distance matrix (output, opt.): .dm")
 
         parser.add_argument("-n",
             type=str,
             dest="nnfile",
-            help='File containing the indices of the nearest neighbors of all configurations\
+            help='Filename to save the indices of the nearest neighbors of all configurations\
                   within the structure file (output, opt.): nn.\n When --ns or --nc flags are not\
                   specified: store only the neighbors within the range of the local scale.')
+
+        parser.add_argument("-D",
+            type=str,
+            dest="dminput",
+            help="Filename to load distance matrix from (input, opt.): .dm")
 
         parser.add_argument("-w",
             type=str,
@@ -226,7 +254,7 @@ class LSDMap(object):
             pickle.dump(self, file)
 
 
-    def save_nneighbors(self, comm, args, DistanceMatrix_thread, epsilon_thread):
+    def save_nneighbors(self, comm, args, neighbor_matrix, idx_neighbor_matrix, epsilon_thread):
 
         size = comm.Get_size()  # number of threads
         rank = comm.Get_rank()  # number of the current thread
@@ -238,8 +266,6 @@ class LSDMap(object):
             nnfile = open(args.nnfile, 'a')
             for idx in xrange(size):
                 if idx == 0:
-                    idx_neighbor_matrix = DistanceMatrix_thread.idx_neighbor_matrix()
-                    neighbor_matrix = DistanceMatrix_thread.neighbor_matrix()
                     epsilon = epsilon_thread
                 else:
                     idx_neighbor_matrix = comm.recv(source=idx, tag=idx)
@@ -262,14 +288,35 @@ class LSDMap(object):
                         np.savetxt(nnfile, idx_neighbor_matrix[idxrow,:idxcol][np.newaxis], fmt='%d')
             nnfile.close()
         else:
-           idx_neighbor_matrix = DistanceMatrix_thread.idx_neighbor_matrix()
-           neighbor_matrix = DistanceMatrix_thread.neighbor_matrix()
            comm.send(idx_neighbor_matrix, dest=0, tag=rank)
            comm.send(neighbor_matrix, dest=0, tag=1000+rank)
            comm.send(epsilon_thread, dest=0, tag=2000+rank)
+
+    def load_distance_matrix(self, comm, args):
+        size = comm.Get_size()  # number of threads
+        rank = comm.Get_rank()  # number of the current thread
+        # Load matrix chunk and send it to processor
+        # Reading from binary format requires as many loads as there were saves.
+        # Alternative, could read entire matrix in break it into chunks 
+        # appropriate for the num of processors used currently
+        if rank == 0:
+            try:
+                dminput = open(args.dminput, 'rb')
+            except IOError:
+                raise IOError("The inputted distance matrix file %s does not exist!" % args.dminput)
+            for idx in range(size):
+                distance_matrix = np.load(dminput)
+                if idx == 0:
+                    distance_matrix_thread = distance_matrix
+                else:
+                    comm.send(distance_matrix, dest=idx, tag=idx)
+            dminput.close()
+        else:
+            distance_matrix_thread = comm.recv(source=0, tag=rank)
+        return distance_matrix_thread
          
     def save_distance_matrix(self, comm, args, distance_matrix_thread):
-
+        
         size = comm.Get_size()  # number of threads
         rank = comm.Get_rank()  # number of the current thread
         if rank == 0:
@@ -308,7 +355,7 @@ class LSDMap(object):
                             level=logging.DEBUG)
 
 
-        logging.info('intializing LSDMap...')
+        logging.info('intializing LSDMap with %d processors...' % size)
         self.initialize(comm, config, args)
         logging.info('LSDMap initialized')
 
@@ -316,19 +363,27 @@ class LSDMap(object):
             logging.error("number of threads should be less than the number of frames")
             raise ValueError
 
-        npoints_thread = len(self.idxs_thread)
+        #npoints_thread = len(self.idxs_thread)
+        npoints_thread = self.npoints_per_thread[rank]
         coords_thread = np.array([self.coords[idx] for idx in self.idxs_thread])
         weights_thread = np.array([self.weights[idx] for idx in self.idxs_thread])
 
-        # compute the distance matrix
-        DistanceMatrix = mt.DistanceMatrix(coords_thread, self.coords, metric=self.metric, metric_prms=self.metric_prms)
-        distance_matrix_thread = DistanceMatrix.distance_matrix
-        logging.info("distance matrix computed")
+        if args.dminput is None:
+            # compute the distance matrix
+            DistanceMatrix = mt.DistanceMatrix(coords_thread, self.coords, metric=self.metric, metric_prms=self.metric_prms)
+            distance_matrix_thread = DistanceMatrix.distance_matrix
+            neighbor_matrix_thread, idx_neighbor_matrix_thread = DistanceMatrix.get_neighbor_matrix()
+            logging.info("distance matrix computed")
+        else:
+            # load distance matrix
+            distance_matrix_thread = self.load_distance_matrix(comm,args)
+            neighbor_matrix_thread, idx_neighbor_matrix_thread = mt.get_neighbor_matrix(distance_matrix_thread)
+            logging.info("distance matrix loaded")
 
         # compute kth neighbor local scales if needed
         if self.status_epsilon in ['kneighbor', 'kneighbor_mean']:
             epsilon_thread = []
-            idx_neighbor_matrix_thread = DistanceMatrix.idx_neighbor_matrix()
+            epsilon_threadv = np.zeros(npoints_thread,dtype='float')
             for idx, line in enumerate(idx_neighbor_matrix_thread):
                 cum_weight = 0
                 for jdx in line[1:]:
@@ -336,8 +391,18 @@ class LSDMap(object):
                     if cum_weight >= self.k:
                         break
                 epsilon_thread.append(distance_matrix_thread[idx,jdx])
+                epsilon_threadv[idx] = distance_matrix_thread[idx,jdx]
 
+            start = MPI.Wtime()
+            self.epsilonv = np.zeros(self.npoints, dtype='float')
+            comm.Allgatherv(epsilon_threadv, [self.epsilonv, self.npoints_per_thread, self.offsets_per_thread, MPI.DOUBLE ])
+            print "Allgatherv  rank: ", rank, " ", MPI.Wtime() - start
+
+            start = MPI.Wtime()
             self.epsilon = np.hstack(comm.allgather(epsilon_thread)) # gather epsilon values
+            print "allgather   rank: ", rank, " ", MPI.Wtime() - start
+            print "agreement   rank: ", rank, " ",np.allclose(self.epsilonv,self.epsilon)
+
             if self.status_epsilon == 'kneighbor_mean':
                 mean_value_epsilon = np.mean(self.epsilon) # compute the mean value of the local scales
                 self.epsilon = mean_value_epsilon * np.ones(self.npoints)  # and set it as the new constant local scale
@@ -374,9 +439,11 @@ class LSDMap(object):
 
         # store nearest neighbors in .nn file if specified via -n option
         if args.nnfile is not None:
-            self.save_nneighbors(comm, args, DistanceMatrix, epsilon_thread)
+            logging.info("Saving nearest neighbors")
+            self.save_nneighbors(comm, args, neighbor_matrix, idx_neighbor_matrix, epsilon_thread)
 
-        if args.dmfile is not None:
+        if (args.dmfile is not None) and (args.dminput is None):
+            logging.info("Saving distance matrix")
             self.save_distance_matrix(comm, args, distance_matrix_thread)
 
         logging.info("LSDMap computation done")

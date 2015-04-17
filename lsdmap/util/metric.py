@@ -5,6 +5,9 @@ import copy
 import pyqcprot
 import util
 
+global MAXSIZE
+MAXSIZE = 5E8
+
 class Metric(object):
     """
     Metric(metric)
@@ -153,7 +156,7 @@ class DistanceMatrix(object):
        self.metric = Metric(metric, ndim=self.ndim, **metric_prms).function
        self.ncoords1 = self.coords1.shape[0]
        self.ncoords2 = self.coords2.shape[0]
-       self.maxsize = 5E8;
+       self.maxsize = MAXSIZE
 
     def __getattr__(self, name):
         if name == "distance_matrix":
@@ -214,3 +217,28 @@ class DistanceMatrix(object):
                 neighbor_matrix[idx] = [distance[idx_neighbor] for idx_neighbor in idx_neighbors]
 
         return neighbor_matrix, idx_neighbor_matrix
+
+
+def get_neighbor_matrix(distance_matrix,k=None):
+
+    ncoords1 = distance_matrix.shape[0]
+    ncoords2 = distance_matrix.shape[1]
+
+    if k is not None:
+        if k >= ncoords2:
+            print "Warning: k > = number of data points "
+    else:
+        k = ncoords2
+
+    if (ncoords1*k) > MAXSIZE:
+        raise ValueError("Large distance matrix expected! use more threads to avoid too much memory")
+
+    neighbor_matrix = np.zeros((ncoords1, k), dtype='float')
+    idx_neighbor_matrix = np.zeros((ncoords1, k), dtype='int')
+
+    for idx, distance in enumerate(distance_matrix):
+        idx_neighbors = np.argsort(distance)[:k]
+        idx_neighbor_matrix[idx] = idx_neighbors
+        neighbor_matrix[idx] = [distance[idx_neighbor] for idx_neighbor in idx_neighbors]
+
+    return neighbor_matrix, idx_neighbor_matrix

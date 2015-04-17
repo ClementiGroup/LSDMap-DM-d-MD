@@ -9,6 +9,7 @@ class XtcError(Exception):
 class Reader(object):
 
     def __init__(self, filename, **kwargs):
+        raise NotImplementedError
         try:
             import xdrfile.libxdrfile2 as libxdr
         except ImportError:

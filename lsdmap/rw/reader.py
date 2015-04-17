@@ -1,4 +1,5 @@
 import os
+import numpy as np
 
 class ReaderError(Exception):
     pass
@@ -106,3 +107,83 @@ def open(filename, **kwargs):
         raise ReaderFormatError(format, known_formats)
 
     return known_formats[format].open(filename, kwargs)
+
+
+def get_coordinates_xtc(filename,idxs=None):
+    """ Get the coordinates """
+
+    try:
+        import xdrfile.libxdrfile2 as libxdr
+    except ImportError:
+        raise ImportError("libxdrfile2 library needed for xtc trajectories!")
+
+    file = libxdr.xdrfile_open(filename, 'r')
+    natoms = libxdr.read_xtc_natoms(filename)
+    nframes, offsets = libxdr.read_xtc_numframes(filename)
+    box = np.zeros((3,3),dtype=np.float32)
+    config = np.zeros((natoms,3),dtype=np.float32)
+
+    if idxs is not None:
+        # Seek to read frames specified by idxs.
+        nframes = len(idxs)
+        coords = np.zeros((nframes,3,natoms),dtype='float')
+        for i in xrange(nframes):
+            libxdr.xdr_seek(file,offsets[idxs[i]],0)
+            status,step,timestmp,prec = libxdr.read_xtc(file, box, config)
+            coords[i,:,:] = config.astype('float').T
+    else:
+        coords = np.zeros((nframes,3,natoms),dtype=np.float32)
+        status = libxdr.exdrOK
+        i = 0
+        while status == libxdr.exdrOK:
+            status,step,timestmp,prec = libxdr.read_xtc(file, box, config)
+            coords[i,:,:] = config.astype('float').T
+            i += 1
+
+    libxdr.xdrfile_close(file)
+
+    return coords
+
+def get_npoints_natoms_xtc(filename,idxs=None):
+    """ Get the coordinates """
+
+    try:
+        import xdrfile.libxdrfile2 as libxdr
+    except ImportError:
+        raise ImportError("libxdrfile2 library needed for xtc trajectories!")
+
+    file = libxdr.xdrfile_open(filename, 'r')
+    natoms = libxdr.read_xtc_natoms(filename)
+    nframes, offsets = libxdr.read_xtc_numframes(filename)
+    return nframes, natoms
+
+
+def get_coordinates_gro(filename,idxs=None):
+    """ Get the coordinates """
+    raise NotImplementedError
+
+def get_npoints_natoms_gro(filename,idxs=None):
+    """ Get the coordinates """
+    raise NotImplementedError
+
+def get_coordinates(filename,idxs=None):
+    ext = filename.split(".")[-1]
+    supported = {"gro":get_coordinates_gro,"xtc":get_coordinates_xtc}
+
+    if ext not in supported.keys():
+        raise IOError("Extension %s is not in supported formats %s" % (ext,supported.keys().__str__()))
+    else:
+        coords = supported[ext](filename,idxs=idxs)
+    return coords
+
+def get_npoints_natoms(filename):
+    ext = filename.split(".")[-1]
+    supported = {"gro":get_npoints_natoms_gro,"xtc":get_npoints_natoms_xtc}
+
+    if ext not in supported.keys():
+        raise IOError("Extension %s is not in supported formats %s" % (ext,supported.keys().__str__()))
+    else:
+        npoints,natoms = supported[ext](filename)
+    return npoints,natoms
+
+
