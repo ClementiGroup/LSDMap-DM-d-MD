@@ -370,11 +370,11 @@ class RbfExe(object):
                         values_embed = np.concatenate((values_embed, self.embed(comm, fit, dc_order)[np.newaxis]))
 
         if rank == 0:
-            wfile = "fit_w.npy"
-            np.save(wfile, weights)
+            wfile = "fit.w"
+            np.savetxt(wfile, weights.T, fmt='%.18e')
 
-            sigfile = "fit_sig.npy"
-            np.save(sigfile, sigma)
+            sigfile = "fit.sig"
+            np.savetxt(sigfile, sigma.T, fmt='%.18e')
 
             if args.embed_file is not None:
-                np.save("fit_embed.npy", values_embed)
+                np.savetxt("fit.embed", values_embed.T, fmt='%.18e')
