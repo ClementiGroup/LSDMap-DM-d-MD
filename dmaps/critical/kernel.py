@@ -119,8 +119,6 @@ class DMapSamplingWorker(object):
             logging.error('Number of coordinates in confall.gro (%i) and number of coordinates expected from config file (%i) do no match' \
                           %(self.coords_all.shape[0], npoints))
        
-        #logging.info('Select configurations for lsdmap completely random')
-        #idxs_lsdmap = random.sample(range(npoints), nlsdmap)
         if settings.iter == 0:
             idxs_lsdmap = random.sample(range(npoints), nlsdmap)
         else:
