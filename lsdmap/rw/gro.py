@@ -42,11 +42,11 @@ class Reader(object):
 
     @property
     def residues(self):
-        return self._read_column(0, 8)
+        return self._read_column(0, 9)
 
     @property
     def atoms(self):
-        return self._read_column(8, 15)
+        return self._read_column(9, 15)
 
     @property
     def atoms_nums(self):
@@ -194,8 +194,8 @@ class Writer(object):
 
     fmt = {'numatoms': "%5d\n",   # number of atoms
                # coordinates output format, see http://chembytes.wikidot.com/g-grofile
-               'xyz': "%8s%7s%5s%8.3f%8.3f%8.3f\n",                  # coordinates only
-               'xyz_v': "%8s%7s%5s%8.3f%8.3f%8.3f%8.4f%8.4f%8.4f\n", # coordinates and velocities
+               'xyz': "%9s%6s%5s%8.3f%8.3f%8.3f\n",                  # coordinates only
+               'xyz_v': "%9s%6s%5s%8.3f%8.3f%8.3f%8.4f%8.4f%8.4f\n", # coordinates and velocities
                # unitcell
                }
 

@@ -209,18 +209,19 @@ cdef public BiasedMD* initBiasedMD(DMSConfig *dmsc, const char* file):
     cdef unsigned int idx
     cdef int natoms
     # list of heavy atoms
-    heavy_atoms = ['C', 'N', 'O', 'P', 'S']
+    water_and_ions = ['OW', 'NA', 'CL']
     heavy_atoms_idxs = []
-
+ 
     f = open('tmp.gro', 'r')
     f.next()
     natoms = int(f.next())
     for atom_idx, line in it.izip(xrange(natoms), f):
-        atoms = line[8:15].lstrip()
-        if not 'W' in atoms: # check if atoms are not from water molecules
-            # check if atoms are in the list of heavy atoms
-            if any([atom in atoms for atom in heavy_atoms]):
-               heavy_atoms_idxs.append(atom_idx)
+        amino_acid = line[0:9].strip()
+        atoms = line[9:15].lstrip()
+        if "CXH" not in amino_acid:
+        # check if not an hydrogen atom, not water and not an ion
+            if atoms[0] != 'H' and atoms not in water_and_ions:
+                heavy_atoms_idxs.append(atom_idx)
     f.close()
 
     # update number of heavy atoms
@@ -233,6 +234,10 @@ cdef public BiasedMD* initBiasedMD(DMSConfig *dmsc, const char* file):
 
     # allocate array of dcs (current iteration)
     bs.dcs = <double *>malloc(dmsc.ndcs*sizeof(double))
+    # allocate array for prev. config. and prev. force     GP
+    bs.store_coord = <float *>malloc(bs.nheavy_atoms*3*sizeof(float))     # GP
+    bs.store_biasforce = <float *>malloc(bs.nheavy_atoms*3*sizeof(float))     # GP
+    bs.HH = 0 # GP
 
     return &bs
 
@@ -242,11 +247,13 @@ cdef public int do_biased_force(BiasedMD *bs, DMSConfig *dmsc, Fit *ft, FEHist *
     cdef int natoms = bs.natoms
     cdef int nheavy_atoms = bs.nheavy_atoms
     cdef int nsave, nsavedcs
+    cdef float DeltaHH
 
     cdef double* vbias = <double *>malloc(sizeof(double))
     cdef double* dcs = <double *>malloc(dmsc.ndcs*sizeof(double))
 
     cdef np.ndarray[np.float64_t,ndim=2] coord = np.zeros((3, natoms))
+    cdef np.ndarray[np.float64_t,ndim=2] vel = np.zeros((3, natoms))
     cdef np.ndarray[np.float64_t,ndim=2] coord_heavy_atoms = np.zeros((3, nheavy_atoms))
     cdef np.ndarray[np.float64_t,ndim=2] force_heavy_atoms = np.zeros((3, nheavy_atoms))
 
@@ -255,6 +262,10 @@ cdef public int do_biased_force(BiasedMD *bs, DMSConfig *dmsc, Fit *ft, FEHist *
         for kdx in xrange(natoms):
             coord[jdx,kdx] = float(bs.coord[jdx+3*kdx])
 
+    for jdx in xrange(3):
+        for kdx in xrange(natoms):
+            vel[jdx,kdx] = float(bs.vel[jdx+3*kdx])
+
     # select only heavy atoms to compute the biased force
     heavy_atoms_idxs = [bs.heavy_atoms_idxs[idx] for idx in xrange(bs.nheavy_atoms)]
     coord_heavy_atoms  = coord[:,heavy_atoms_idxs]
@@ -262,24 +273,35 @@ cdef public int do_biased_force(BiasedMD *bs, DMSConfig *dmsc, Fit *ft, FEHist *
     # store configuration and weight after nsave steps
     nsave = max(bs.nsteps/dmsc.nstride, 1) # in dms.py, we already check if nsteps is a multiple of nstride 
     if bs.step%nsave == 0 and bs.step > 0:
-        save_data(coord, heavy_atoms_idxs, bs, dmsc)
+        save_data(coord, vel, heavy_atoms_idxs, bs, dmsc)
 
     # compute biased force if not first iteration
     if dmsc.isfirst == 0:
-         #if bs.step % dmsc.nstepbias == dmsc.nstepbias-1: # GP
-         #   bs.coord_prev = #save conf    # GP
-         #if bs.step % dmsc.nstepbias == 1:    # GP
-         #   print bs.force[0], bs.force[1], bs.force[3] # GP
-        if bs.step%dmsc.nstepbias == 0:
-            do_biased_force_low_level(nheavy_atoms, coord_heavy_atoms, force_heavy_atoms, vbias, dcs, dmsc, ft, feh)
-            for jdx in xrange(dmsc.ndcs):
-                bs.dcs[jdx] = dcs[jdx]
-            bs.vbias = vbias[0]
+         # save config. of heavy atoms at time step previous to application of bias force # GP
+         if bs.step % dmsc.nstepbias == dmsc.nstepbias-1:      # GP
+             for idx in xrange(3):                             # GP
+                 for jdx in xrange(len(heavy_atoms_idxs)):             # GP
+                     bs.store_coord[idx+3*jdx] = coord[idx,heavy_atoms_idxs[jdx]]    # GP
+         # compute monitor quantity at step subsequent to application of bias force 
+         if (bs.step % dmsc.nstepbias == 1 and bs.step > 2*dmsc.nstepbias-1):    # GP
+             for idx in xrange(3):                             # GP                               
+                 for jdx in xrange(len(heavy_atoms_idxs)):             # GP                              
+                     bs.HH += (coord_heavy_atoms[idx,jdx]-bs.store_coord[idx+3*jdx])*bs.store_biasforce[idx+3*jdx]/2+(bs.vbias-bs.vbias_prev)
+             #print bs.HH # GP
 
-            #print bs.force[0], bs.force[1], bs.force[3], force[0][1]
-            for idx in xrange(3):
-                for jdx, atom_jdx in enumerate(heavy_atoms_idxs):
-                    bs.force[idx+3*atom_jdx] += force_heavy_atoms[idx][jdx]*dmsc.nstepbias
+         if bs.step % dmsc.nstepbias == 0:
+             do_biased_force_low_level(nheavy_atoms, coord_heavy_atoms, force_heavy_atoms, vbias, dcs, dmsc, ft, feh)
+             for jdx in xrange(dmsc.ndcs):
+                 bs.dcs[jdx] = dcs[jdx]
+             # save vbias before updating it   # GP
+             bs.vbias_prev =  bs.vbias         # GP
+             bs.vbias = vbias[0]
+
+             for idx in xrange(3):
+                 for jdx, atom_jdx in enumerate(heavy_atoms_idxs):
+                     bs.force[idx+3*atom_jdx] += force_heavy_atoms[idx][jdx]*dmsc.nstepbias
+                     # store only bias force   # GP
+                     bs.store_biasforce[idx+3*jdx] = force_heavy_atoms[idx][jdx]*dmsc.nstepbias # GP
             #print bs.force[0], bs.force[1], bs.force[3], force[0][1]
     else:
         bs.vbias = 0.0
@@ -381,11 +403,11 @@ cdef int do_biased_force_low_level(int natoms, np.ndarray[np.float64_t,ndim=2] c
 
     return 0
 
-cdef int save_data(np.ndarray[np.float64_t,ndim=2] coord, heavy_atoms_idxs, BiasedMD *bs, DMSConfig *dmsc):
+cdef int save_data(np.ndarray[np.float64_t,ndim=2] coord, np.ndarray[np.float64_t,ndim=2] vel, heavy_atoms_idxs, BiasedMD *bs, DMSConfig *dmsc):
 
     w = writer.open('.gro', pattern='tmp.gro')
-    w.write(coord, 'confall_aa.gro', mode='a') # write configurations with all atoms
-    w.write(coord, 'confall.gro', idxs_atoms=heavy_atoms_idxs, mode='a') # write configurations with heavy atoms
+    w.write(np.vstack((coord, vel)), 'confall_aa.gro', mode='a') # write configurations with all atoms
+    w.write(np.vstack((coord, vel)), 'confall.gro', idxs_atoms=heavy_atoms_idxs, mode='a') # write configurations with heavy atoms
     w.close()
 
     with open('confall.w', 'a') as wfile:

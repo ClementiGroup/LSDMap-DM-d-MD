@@ -124,7 +124,7 @@ class RbfFit(object):
         if self.distance_matrix is None:
             logging.info("distance matrix not provided, computing it...")
 
-            idxs_thread = p_index.get_idxs_thread(comm, self.npoints)
+            idxs_thread = p_index.get_idxs_thread_v(comm, self.npoints)
             npoints_thread = len(idxs_thread)
             coords_thread = np.array([self.coords[idx] for idx in idxs_thread])
             DistanceMatrix = mt.DistanceMatrix(coords_thread, self.coords, metric=self.metric, metric_prms=self.metric_prms)
@@ -165,11 +165,11 @@ class RbfExe(object):
 
         # load configurations
         format_struct_file = os.path.splitext(args.struct_file[0])[1]
-	if format_struct_file == '.gro': # use lsdmap reader
+        if format_struct_file == '.gro': # use lsdmap reader
             struct_file = reader.open(args.struct_file)
             self.npoints = struct_file.nlines
 
-            idxs_thread = p_index.get_idxs_thread(comm, self.npoints)
+            idxs_thread = p_index.get_idxs_thread_v(comm, self.npoints)
             coords_thread = struct_file.readlines(idxs_thread)
             self.coords = np.vstack(comm.allgather(coords_thread))
         else: # use numpy
@@ -214,7 +214,7 @@ class RbfExe(object):
             self.embed_filename = embed_file.filename
             self.npoints_embed = embed_file.nlines
 
-            self.idxs_thread_embed = p_index.get_idxs_thread(comm, self.npoints_embed)
+            self.idxs_thread_embed = p_index.get_idxs_thread_v(comm, self.npoints_embed)
 
             if hasattr(embed_file, '_skip'): # multi-thread reading
                 coords_thread_embed = embed_file.readlines(self.idxs_thread_embed)
@@ -360,7 +360,7 @@ class RbfExe(object):
                 # use distance matrix computed before
                 distance_matrix = fit.distance_matrix
                 for dc_order in args.dc_orders[1:]:
-	            logging.info('Start fitting procedure along DC %i'%dc_order)
+                    logging.info('Start fitting procedure along DC %i'%dc_order)
                     fit = RbfFit(comm, self.coords, self.values[:,dc_order], distance_matrix=distance_matrix, metric=self.metric,
                                  fit=self.function, sigma=self.sigma, ksigma=self.ksigma)
                     logging.info('Fitting along DC %i done'%dc_order)

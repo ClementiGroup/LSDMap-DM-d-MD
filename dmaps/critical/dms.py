@@ -2,6 +2,7 @@ import os
 import sys
 import time
 import imp
+import stat
 import glob
 import shutil
 import argparse
@@ -10,7 +11,6 @@ import logging
 import subprocess
 import numpy as np
 
-#from dmaps.tools import pilot
 from dmaps.tools.config import platforms
 from dmaps.critical import kernel as dmsk
 
@@ -206,6 +206,12 @@ class DMapSamplingConfig(object):
             logging.error(".top file does not exist:" + topfile)
             raise IOError(".top file does not exist:" + topfile)
 
+        # check topfile
+        if hasattr(settings, "ndxfile"):
+            ndxfile_option="-n ../../" + settings.ndxfile
+        else:
+            ndxfile_option = ""
+
         # check grompp and mdrun options
         if hasattr(settings, "grompp_options"):
             grompp_options = settings.grompp_options
@@ -239,8 +245,13 @@ for idx in `seq 1 $nframes`; do
   sed "$start"','"$end"'!d' $startgro > $tmpstartgro
 
   # gromacs preprocessing & MD
+<<<<<<< HEAD
   grompp_jbm -f ../../%(mdpfile)s -c $tmpstartgro -p ../../%(topfile)s %(grompp_options)s &> /dev/null
   mdrun_jbm -nt 1 -dms ../../%(inifile)s %(mdrun_options)s &> mdrun.log
+=======
+  grompp -f ../../%(mdpfile)s -c $tmpstartgro -p ../../%(topfile)s %(ndxfile_option)s %(grompp_options)s &> grompp.log
+  mdrun -nt 1 -dms ../../%(inifile)s %(mdrun_options)s &> mdrun.log
+>>>>>>> 71de5a22684b140fed306b9c289574549ac983c7
 
 done
 
@@ -249,6 +260,7 @@ rm -f $tmpstartgro
         """ % locals()
             file.write(script)
 
+        os.chmod(filename, stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IROTH | stat.S_IXUSR)
 
 class DMapSamplingExe(object):
 
@@ -327,6 +339,7 @@ class DMapSamplingExe(object):
         parser.add_argument("-f", type=str, dest="setfile", required=True, help='File containing settings (input): -')
         parser.add_argument("--restart", action="store_true", dest="restart", default=False, help='restart from scratch')
         parser.add_argument("--checkpoint", type=int, dest="num_iter", help='restart from a given iteration')
+        parser.add_argument("--skipmd", action="store_true", dest="skipmd", default=False, help='skip first MD simulations')
 
         args = parser.parse_args()
 
@@ -340,13 +353,22 @@ class DMapSamplingExe(object):
             self.restart(args)
             if args.num_iter is not None:
                 logging.error("checkpoint option can not be set together with restart option")
+                raise ValueError("checkpoint option can not be set together with restart option")
+            if args.skipmd:
+                logging.error("skipmd option can not be set together with restart option")
+                raise ValueError("skipmd option can not be set together with restart option")
         elif args.num_iter is not None:
             if args.num_iter == 0:
                 logging.error("checkpoint option can not be set to 0, use restart option instead")
             elif args.num_iter > 0:
                 self.restart_from_iter(args.num_iter, args)
+                if args.skipmd:
+                    logging.error("skipmd option can not be set together with checkpoint option")
+                    raise ValueError("skipmd option can not be set together with checkpoint option")
             else:
                 logging.error("argument of checkpoint option should be a positive integer (iteration number to restart from)")
+                raise ValueError("argument of checkpoint option should be a positive integer (iteration number to restart from)")
+                
 
         settings = imp.load_source('setfile', args.setfile)
         # if restart or checkpoint options are disabled, restart from the iteration specified in settings
@@ -364,7 +386,8 @@ class DMapSamplingExe(object):
             print 'Iteration %i\n'%settings.iter
             # run biased MD
             dmapsworker = dmsk.DMapSamplingWorker()
-            dmapsworker.run_md(settings, config)
+            if idx == 0 and args.skipmd: pass
+            else: dmapsworker.run_md(settings, config)
             # run LSDMap and fit
             dmapsworker.run_lsdmap(settings, config)
             dmapsworker.run_fit(settings, config) # fit configurations of the current iteration

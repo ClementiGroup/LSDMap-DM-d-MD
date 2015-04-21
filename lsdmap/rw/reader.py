@@ -106,3 +106,4 @@ def open(filename, **kwargs):
         raise ReaderFormatError(format, known_formats)
 
     return known_formats[format].open(filename, kwargs)
+
