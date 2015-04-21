@@ -222,7 +222,11 @@ class DMapSamplingConfig(object):
             mdrun_options = settings.mdrun_options
         else:
             mdrun_options = ""
-
+        #add a suffix for gromacs build
+        if hasattr(settings, "gromacs_suffix"):
+            gromacs_suffix = settings.gromacs_suffix
+        else:
+            gromacs_suffix = ""
         # write script
         with open(filename, 'w') as file:
             script ="""#!/bin/bash
@@ -245,13 +249,9 @@ for idx in `seq 1 $nframes`; do
   sed "$start"','"$end"'!d' $startgro > $tmpstartgro
 
   # gromacs preprocessing & MD
-<<<<<<< HEAD
-  grompp_jbm -f ../../%(mdpfile)s -c $tmpstartgro -p ../../%(topfile)s %(grompp_options)s &> /dev/null
-  mdrun_jbm -nt 1 -dms ../../%(inifile)s %(mdrun_options)s &> mdrun.log
-=======
-  grompp -f ../../%(mdpfile)s -c $tmpstartgro -p ../../%(topfile)s %(ndxfile_option)s %(grompp_options)s &> grompp.log
-  mdrun -nt 1 -dms ../../%(inifile)s %(mdrun_options)s &> mdrun.log
->>>>>>> 71de5a22684b140fed306b9c289574549ac983c7
+
+  grompp%(gromacs_suffix)s -f ../../%(mdpfile)s -c $tmpstartgro -p ../../%(topfile)s %(ndxfile_option)s %(grompp_options)s &> /dev/null
+  mdrun%(gromacs_suffix)s -nt 1 -dms ../../%(inifile)s %(mdrun_options)s &> mdrun.log
 
 done
 
