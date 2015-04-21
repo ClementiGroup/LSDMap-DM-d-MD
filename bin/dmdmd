@@ -100,7 +100,7 @@ for i in `seq 1 $niters` ; do
 
   # 4) reweighting step
   echo "(4) Update Boltzmann weights"
-  if [ $(($iter + $i)) > 0 ]; then cp $wfile backup.w; fi
+  if [ $(($iter + $i)) -gt 1 ]; then cp $wfile backup.w; fi
   eval reweighting -c tmp.gro -n tmp.nn -s ncopies.nc -w $wfile -o out.gro $reweighting_options
   echo
 
