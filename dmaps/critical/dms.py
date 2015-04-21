@@ -364,8 +364,8 @@ class DMapSamplingExe(object):
             print 'Iteration %i\n'%settings.iter
             # run biased MD
             dmapsworker = dmsk.DMapSamplingWorker()
-            if idx == 0 and args.skipmd: pass
-            else: dmapsworker.run_md(settings, config)
+            if idx > 0 or not args.skipmd:
+                dmapsworker.run_md(settings, config)
             # run LSDMap and fit
             dmapsworker.run_lsdmap(settings, config)
             dmapsworker.run_fit(settings, config) # fit configurations of the current iteration
