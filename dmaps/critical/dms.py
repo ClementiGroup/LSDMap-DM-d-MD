@@ -222,11 +222,13 @@ class DMapSamplingConfig(object):
             mdrun_options = settings.mdrun_options
         else:
             mdrun_options = ""
+            
         #add a suffix for gromacs build
         if hasattr(settings, "gromacs_suffix"):
             gromacs_suffix = settings.gromacs_suffix
         else:
             gromacs_suffix = ""
+
         # write script
         with open(filename, 'w') as file:
             script ="""#!/bin/bash
