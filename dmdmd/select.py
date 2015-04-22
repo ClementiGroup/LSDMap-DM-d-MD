@@ -5,7 +5,6 @@ import logging
 import numpy as np
 
 from lsdmap.rw import reader
-import coord_util.sampling as sampling
 
 
 class SelectionStep(object):
