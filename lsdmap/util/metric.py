@@ -151,7 +151,8 @@ class DistanceMatrix(object):
            self.ndim = 1
            self.natoms = shape_coords1[1]
        else:
-           raise TypeError('coords1 and coords2 should have a number of dimensions 1 < ndim < 4;                                                                                                      if only one coordinate is used, consider using coords1[np.newaxis] or coords2[np.newaxis]')
+           raise TypeError('coords1 and coords2 should have a number of dimensions 1 < ndim < 4;\
+                 if only one coordinate is used, consider using coords1[np.newaxis] or coords2[np.newaxis]')
            
        self.metric = Metric(metric, ndim=self.ndim, **metric_prms).function
        self.ncoords1 = self.coords1.shape[0]
@@ -242,3 +243,6 @@ def get_neighbor_matrix(distance_matrix,k=None):
         neighbor_matrix[idx] = [distance[idx_neighbor] for idx_neighbor in idx_neighbors]
 
     return neighbor_matrix, idx_neighbor_matrix
+
+def distance_matrix(coords1, coords2, metric='rmsd', metric_prms={}):
+    pass
