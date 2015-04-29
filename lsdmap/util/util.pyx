@@ -31,13 +31,11 @@ def cmd(np.ndarray[np.double_t, ndim=2] coord1, np.ndarray[np.double_t, ndim=2] 
             if i != j: sumc1c2 += (c1 - c2)**2
 
     value = sqrt(sumc1c2/sqrt(sumc1*sumc2))
-
     return value
-
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
-def euclidean(np.ndarray[np.double_t, ndim=2] coord1, np.ndarray[np.double_t, ndim=2] coord2):
+def euclidean_distance(np.ndarray[np.double_t, ndim=2] coord1, np.ndarray[np.double_t, ndim=2] coord2):
 
     cdef double value
     cdef int ndim = coord1.shape[0]
@@ -47,7 +45,6 @@ def euclidean(np.ndarray[np.double_t, ndim=2] coord1, np.ndarray[np.double_t, nd
     cdef unsigned int i, j
 
     sum = 0.0
-
     for i in xrange(ndim):
         for j in xrange(natoms):
           sum += (coord1[i,j] - coord2[i,j])**2
@@ -56,7 +53,7 @@ def euclidean(np.ndarray[np.double_t, ndim=2] coord1, np.ndarray[np.double_t, nd
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
-def dihedral(np.ndarray[np.double_t, ndim=1] coord1, np.ndarray[np.double_t, ndim=1] coord2):
+def dihedral_distance(np.ndarray[np.double_t, ndim=1] coord1, np.ndarray[np.double_t, ndim=1] coord2):
 
     cdef double value
     cdef int ndihedral = coord1.shape[0]
@@ -66,5 +63,4 @@ def dihedral(np.ndarray[np.double_t, ndim=1] coord1, np.ndarray[np.double_t, ndi
         sum += 0.5*(1-cos(coord1[i] - coord2[i]))
 
     value = sqrt(sum/ndihedral)
-
     return value
