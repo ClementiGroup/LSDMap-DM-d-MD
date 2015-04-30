@@ -16,18 +16,6 @@ from lsdmap.util import metric as mt
 
 from mpi4py import MPI
 
-#from line_profiler import LineProfiler
-#from memory_profiler import profile
-
-def profile_each_line(func, *args, **kwargs):
-    profiler = LineProfiler()
-    profiled_func = profiler(func)
-    try:
-        profiled_func(*args, **kwargs)
-    finally:
-        profiler.print_stats()
-
-
 class LSDMap(object):
 
     def initialize(self, comm, config, args):
@@ -318,13 +306,13 @@ class LSDMap(object):
                 os.remove(args.dmfile)
             except OSError:
                 pass
-            dmfile = open(args.dmfile, 'a+b')
+            dmfile = open(args.dmfile, 'a')
             for idx in xrange(size):
                 if idx == 0:
                     distance_matrix = distance_matrix_thread
                 else:
                     distance_matrix = comm.recv(source=idx, tag=idx)
-                np.save(dmfile, distance_matrix)
+                np.savetxt(dmfile, distance_matrix)
             dmfile.close()
         else:
             comm.send(distance_matrix_thread, dest=0, tag=rank)
@@ -350,8 +338,7 @@ class LSDMap(object):
 
 
         logging.info('intializing LSDMap with %d processors...' % size)
-        #self.initialize(comm, config, args)
-        profile_each_line(self.initialize, comm, config, args)
+        self.initialize(comm, config, args)
         logging.info('LSDMap initialized')
 
         if size > self.npoints:
@@ -387,17 +374,9 @@ class LSDMap(object):
                 #epsilon_thread.append(distance_matrix_thread[idx,jdx])
                 epsilon_threadv[idx] = distance_matrix_thread[idx,jdx]
 
-            #start = MPI.Wtime()
             self.epsilon = np.zeros(self.npoints, dtype='float')
             comm.Allgatherv(epsilon_threadv, (self.epsilon, self.npoints_per_thread, self.offsets_per_thread, MPI.DOUBLE))
-            #print "Allgatherv  rank: ", rank, " ", MPI.Wtime() - start
 
-            #start = MPI.Wtime()
-            #self.epsilon = np.hstack(comm.allgather(epsilon_thread)) # gather epsilon values
-            #print "allgather   rank: ", rank, " ", MPI.Wtime() - start
-            #print "agreement   rank: ", rank, " ",np.allclose(self.epsilonv,self.epsilon)
-
-            #raise SystemExit
             if self.status_epsilon == 'kneighbor_mean':
                 mean_value_epsilon = np.mean(self.epsilon) # compute the mean value of the local scales
                 self.epsilon = mean_value_epsilon * np.ones(self.npoints)  # and set it as the new constant local scale
