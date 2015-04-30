@@ -17,7 +17,7 @@ from lsdmap.util import metric as mt
 from mpi4py import MPI
 
 #from line_profiler import LineProfiler
-from memory_profiler import profile
+#from memory_profiler import profile
 
 def profile_each_line(func, *args, **kwargs):
     profiler = LineProfiler()
@@ -30,7 +30,6 @@ def profile_each_line(func, *args, **kwargs):
 
 class LSDMap(object):
 
-    @proflie
     def initialize(self, comm, config, args):
 
         rank = comm.Get_rank()
