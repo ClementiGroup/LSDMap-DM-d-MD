@@ -67,7 +67,7 @@ def check_import(pkgname, pkgver):
 check_import('numpy', min_numpy_version)
 check_import('scipy', min_scipy_version)
 check_import('mpi4py', min_mpi4py_version)
-#check_import('cython', min_cython_version)
+check_import('cython', min_cython_version)
 
 import numpy as np
 try:
@@ -88,33 +88,11 @@ ext_modules = [Extension(
     name='lsdmap/util/util',
     sources=["lsdmap/util/util.pyx"],
     include_dirs=[numpy_include],
-    ), Extension(
-    name='dmaps/critical/libdms',
-    sources=["dmaps/critical/bias.pyx"],
-    libraries=['python2.' + str(sys.version_info[1]), 'util'],
-    library_dirs=[sys.prefix + '/' + 'lib'],
-    include_dirs=[numpy_include],
-    ), Extension(
-    name='dmaps/ctram/ctramfe',
-    sources=["dmaps/ctram/ctramfe.pyx"],
-    include_dirs=[numpy_include],
-    ), Extension(
-    name='dmaps/tools/voronoi',
-    sources=["dmaps/tools/voronoi.pyx"],
-    include_dirs=[numpy_include],
-    ), Extension(
-    name='dmaps/tools/rbf',
-    sources=["dmaps/tools/rbf.pyx"],
-    include_dirs=[numpy_include],
-    ), Extension(
-    name='dmaps/ctram/wrapper',
-    sources=["dmaps/ctram/wrapper.pyx", "dmaps/ctram/ctram.c"],
-    include_dirs=[numpy_include],
     )]
 
 setup(name='lsdmap',
-      packages=['lsdmap', 'lsdmap.mpi', 'lsdmap.rw', 'lsdmap.util', 'lsdmap.rbf', 'dmdmd', 'dmdmd.tools', 'dmaps', 'dmaps.critical', 'dmaps.tools', 'dmaps.ctram'],
-      scripts = ['bin/lsdmap','bin/dmdmd', 'bin/dmaps', 'bin/rbffit','bin/reweighting','bin/selection','bin/p_mdrun', 'bin/p_mdrun_d'],
+      packages=['lsdmap', 'lsdmap.mpi', 'lsdmap.rw', 'lsdmap.util', 'lsdmap.rbf', 'dmdmd', 'dmdmd.tools'],
+      scripts = ['bin/lsdmap','bin/dmdmd', 'bin/rbffit','bin/reweighting','bin/selection','bin/p_mdrun'],
       ext_modules = cythonize(ext_modules),
       cmdclass = cmdclass,
       license='LICENSE.txt',
