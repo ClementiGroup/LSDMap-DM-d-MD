@@ -16,6 +16,9 @@ from lsdmap.util import metric as mt
 
 from mpi4py import MPI
 
+import memory_profiler
+
+
 class LSDMap(object):
 
     def initialize(self, comm, config, args):
