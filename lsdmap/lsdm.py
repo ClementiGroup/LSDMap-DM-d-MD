@@ -185,7 +185,8 @@ class LSDMap(object):
 
         # compute kth neighbor local scales if needed
         if self.status_epsilon in ['kneighbor', 'kneighbor_mean']:
-            epsilon = []
+            #epsilon = []
+            self.epsilon = np.zeros(self.npoints,float)
             idx_neighbor_matrix = DistanceMatrix.idx_neighbor_matrix()
             for idx, line in enumerate(idx_neighbor_matrix):
                 cum_weight = 0
@@ -193,9 +194,9 @@ class LSDMap(object):
                     cum_weight += self.weights[jdx]
                     if cum_weight >= self.k:
                         break
-                epsilon.append(distance_matrix[idx,jdx])
+                #epsilon.append(distance_matrix[idx,jdx])
+                self.epsilon[idx] = distance_matrix[idx,jdx]
 
-            self.epsilon = epsilon
             if self.status_epsilon == 'kneighbor_mean':
                 mean_value_epsilon = np.mean(self.epsilon) # compute the mean value of the local scales
                 self.epsilon = mean_value_epsilon * np.ones(self.npoints)  # and set it as the new constant local scale
