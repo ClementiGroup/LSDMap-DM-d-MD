@@ -5,6 +5,12 @@ import copy
 import pyqcprot
 import util
 
+try:
+    import psutil
+except:
+    pass
+
+
 class Metric(object):
     """
     Metric(metric)
@@ -165,7 +171,7 @@ class DistanceMatrix(object):
 
         matrix = np.zeros((self.ncoords1, self.ncoords2))
         for idx, coord1 in enumerate(self.coords1):
-	    for jdx, coord2 in enumerate(self.coords2):
+            for jdx, coord2 in enumerate(self.coords2):
                 matrix[idx, jdx] = self.metric(coord1, coord2)
 
         matrix[np.isnan(matrix)] = 0.0
