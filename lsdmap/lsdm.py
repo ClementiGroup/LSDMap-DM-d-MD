@@ -195,7 +195,7 @@ class LSDMap(object):
                         break
                 epsilon.append(distance_matrix[idx,jdx])
 
-            self.epsilon = epsilon
+            self.epsilon = np.array(epsilon)
             if self.status_epsilon == 'kneighbor_mean':
                 mean_value_epsilon = np.mean(self.epsilon) # compute the mean value of the local scales
                 self.epsilon = mean_value_epsilon * np.ones(self.npoints)  # and set it as the new constant local scale
