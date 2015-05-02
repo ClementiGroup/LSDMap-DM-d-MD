@@ -40,27 +40,27 @@ cdef public DMSConfig* initDMSConfig(const char* file):
     config = ConfigParser.SafeConfigParser()
     config.read(file)
 
-    # first iteration?
-    dmsc.isfirst = config.getint('DMAPS', 'isfirst')
+    # iteration number
+    dmsc.iter = config.getint('GENERAL', 'iter')
     # number of points saved per replica
-    dmsc.nstride = config.getint('DMAPS', 'nstride')
+    dmsc.nstride = config.getint('GENERAL', 'nstride')
     # number of first dcs used
-    dmsc.ndcs = config.getint('DMAPS', 'ndcs')
+    dmsc.ndcs = config.getint('GENERAL', 'ndcs')
 
     # number of MD steps skipped for the computation of the bias potential
-    if config.has_option('DMAPS', 'nstepbias'):
-        dmsc.nstepbias = config.getint('DMAPS', 'nstepbias') # GP
+    if config.has_option('MD', 'nstepbias'):
+        dmsc.nstepbias = config.getint('MD', 'nstepbias')
     else:
         dmsc.nstepbias = 1
 
     # temperature
     kb = 8.31451070e-3 #kJ.mol^(-1).K^(-1)
-    temperature = config.getfloat('MD', 'temperature')
+    temperature = config.getfloat('GENERAL', 'temperature')
     dmsc.kT = kb*temperature
 
     # fraction of the free energy we actually use for the bias potential
-    if config.has_option('DMAPS', 'fefrac'):
-        dmsc.fefrac = config.getfloat('DMAPS', 'fefrac')
+    if config.has_option('GENERAL', 'fefrac'):
+        dmsc.fefrac = config.getfloat('GENERAL', 'fefrac')
     else:
         dmsc.fefrac = 1.0
 
@@ -69,61 +69,77 @@ cdef public DMSConfig* initDMSConfig(const char* file):
 
 cdef public FEHist* initFEHist(DMSConfig *dmsc, const char* file):
 
-    if dmsc.isfirst == 0:
+    cdef int shift, ndx
+
+    if dmsc.iter > 0:
 
         fedir = '../../fe'
-        bins = np.loadtxt(fedir + '/bins.xyz')
-        feh.nbins = bins.shape[0]
-
-        histo = np.loadtxt(fedir + '/hist.dat')
-        nebins_idxs = histo[:,:dmsc.ndcs].astype(int)
-        nebins_idxs_s = histo[:,dmsc.ndcs].astype(int)
-        free_energy = histo[:,dmsc.ndcs+1]
-        gradient = histo[:,dmsc.ndcs+2:2*dmsc.ndcs+2]
-
-        feh.nnebins = free_energy.shape[0]
-
-        if dmsc.ndcs == 1:
-            bins = bins[:,np.newaxis]
-            nebins_idxs = nebins_idxs[:,np.newaxis]
-            gradient = gradient[:,np.newaxis]
-
-        if np.any(free_energy > 0.0):
-            raise IOError("free energy values in hist.dat should be all negative!")
-
         # allocate memory for the bins
-        feh.bins = <double *>malloc(feh.nbins*dmsc.ndcs*sizeof(double))
-        # allocate memory for the idxs of nonempty bins
-        feh.nebins_idxs = <int *>malloc(feh.nnebins*dmsc.ndcs*sizeof(int))
-        # allocate memory for the idxs of nonempty bins
-        feh.nebins_idxs_s = <int *>malloc(feh.nnebins*sizeof(int))
-
-        # allocate memory for the values of the free energy (nonempty bins)
-        feh.values = <double *>malloc(feh.nnebins*sizeof(double))
-        # allocate memory for the gradient (nonempy bins)
-        feh.gradient = <double *>malloc(feh.nnebins*dmsc.ndcs*sizeof(double))
-        
-        for idx in xrange(feh.nbins):
-            for jdx in xrange(dmsc.ndcs):
-                # update values of the bins
-                feh.bins[idx+feh.nbins*jdx] = bins[idx,jdx]
-
-        for idx in xrange(feh.nnebins):
-            # update values of the free energy
-            feh.values[idx] = free_energy[idx]
-            feh.nebins_idxs_s[idx] = nebins_idxs_s[idx]
-
-            for jdx in xrange(dmsc.ndcs):
-                # update values of the idxs of nonempty bins
-                feh.nebins_idxs[idx+feh.nnebins*jdx] = nebins_idxs[idx,jdx]
-                # update values of the gradient
-                feh.gradient[idx+feh.nnebins*jdx] = gradient[idx,jdx]
+        feh.nbins = <int *>malloc(dmsc.iter*dmsc.ndcs*sizeof(int))
+        feh.nnebins = <int *>malloc(dmsc.iter*dmsc.ndcs*sizeof(int))
 
         # allocate memory for the step values of the histogram
-        feh.steps = <double *>malloc(dmsc.ndcs*sizeof(double))
+        feh.steps = <double *>malloc(dmsc.iter*dmsc.ndcs*sizeof(double))
 
-        for jdx in xrange(dmsc.ndcs):
-            feh.steps[jdx] = feh.bins[feh.nbins*jdx+1] - feh.bins[feh.nbins*jdx]
+        # get the total number of bins and non-empty bins
+        for ndx in range(dmsc.iter):
+            bins = np.loadtxt(fedir + '/bins.xyz.%i'%ndx)
+            feh.nbins[ndx] = bins.shape[0]
+            histo = np.loadtxt(fedir + '/hist.dat.%i'%ndx)
+            feh.nnebins[ndx] = histo.shape[0]
+            
+        nbins_tot = 0
+        nnebins_tot = 0
+        for ndx in range(dmsc.iter):
+            nbins_tot += feh.nbins[ndx]
+            nnebins_tot += feh.nnebins[ndx]
+
+        feh.nbins_tot = nbins_tot
+        feh.nnebins_tot = nnebins_tot
+
+        # allocate memory for the bins
+        feh.bins = <double *>malloc(feh.nbins_tot*dmsc.ndcs*sizeof(double))
+        # allocate memory for the idxs of nonempty bins
+        feh.nebins_idxs_s = <int *>malloc(feh.nnebins_tot*sizeof(int))
+
+        # allocate memory for the values of the free energy (nonempty bins)
+        feh.values = <double *>malloc(feh.nnebins_tot*sizeof(double))
+
+        for ndx in range(dmsc.iter):
+
+            bins = np.loadtxt(fedir + '/bins.xyz.%i'%ndx)
+            histo = np.loadtxt(fedir + '/hist.dat.%i'%ndx)
+            nebins_idxs = histo[:,:dmsc.ndcs].astype(int)
+            nebins_idxs_s = histo[:,dmsc.ndcs].astype(int)
+            free_energy = histo[:,dmsc.ndcs+1]
+
+            if dmsc.ndcs == 1:
+                bins = bins[:,np.newaxis]
+                nebins_idxs = nebins_idxs[:,np.newaxis]
+
+            if np.any(free_energy > 0.0):
+                raise IOError("free energy values in hist.dat should be all negative!")
+
+            shift = 0
+            for mdx in range(ndx):
+                shift += feh.nbins[mdx]
+
+            for idx in xrange(feh.nbins[ndx]):
+                for jdx in xrange(dmsc.ndcs):
+                    # update values of the bins
+                    feh.bins[shift*dmsc.ndcs+idx+feh.nbins[ndx]*jdx] = bins[idx,jdx]
+
+            shift = 0
+            for mdx in range(ndx):
+                shift += feh.nnebins[mdx]
+
+            for idx in xrange(feh.nnebins[ndx]):
+                # update values of the free energy
+                feh.values[shift+idx] = free_energy[idx]
+                feh.nebins_idxs_s[shift+idx] = nebins_idxs_s[idx]
+
+            for jdx in xrange(dmsc.ndcs):
+                feh.steps[ndx*dmsc.ndcs+jdx] = bins[1,jdx] - bins[0,jdx]
 
     return &feh
 
@@ -132,7 +148,7 @@ cdef public Fit* initFit(DMSConfig *dmsc, const char* file):
     cdef unsigned int idx, jdx, kdx
     cdef int ndim, natoms 
 
-    if dmsc.isfirst == 0:
+    if dmsc.iter > 0:
 
         # initialize parser
         config = ConfigParser.SafeConfigParser()
@@ -234,10 +250,10 @@ cdef public BiasedMD* initBiasedMD(DMSConfig *dmsc, const char* file):
 
     # allocate array of dcs (current iteration)
     bs.dcs = <double *>malloc(dmsc.ndcs*sizeof(double))
-    # allocate array for prev. config. and prev. force     GP
-    bs.store_coord = <float *>malloc(bs.nheavy_atoms*3*sizeof(float))     # GP
-    bs.store_biasforce = <float *>malloc(bs.nheavy_atoms*3*sizeof(float))     # GP
-    bs.HH = 0 # GP
+    # allocate array for prev. config. and prev. force
+    bs.store_coord = <float *>malloc(bs.nheavy_atoms*3*sizeof(float))
+    bs.store_biasforce = <float *>malloc(bs.nheavy_atoms*3*sizeof(float))
+    bs.HH = 0
 
     return &bs
 
@@ -276,59 +292,51 @@ cdef public int do_biased_force(BiasedMD *bs, DMSConfig *dmsc, Fit *ft, FEHist *
         save_data(coord, vel, heavy_atoms_idxs, bs, dmsc)
 
     # compute biased force if not first iteration
-    if dmsc.isfirst == 0:
-         # save config. of heavy atoms at time step previous to application of bias force # GP
-         if bs.step % dmsc.nstepbias == dmsc.nstepbias-1:      # GP
-             for idx in xrange(3):                             # GP
-                 for jdx in xrange(len(heavy_atoms_idxs)):             # GP
-                     bs.store_coord[idx+3*jdx] = coord[idx,heavy_atoms_idxs[jdx]]    # GP
-         # compute monitor quantity at step subsequent to application of bias force 
-         if (bs.step % dmsc.nstepbias == 1 and bs.step > 2*dmsc.nstepbias-1):    # GP
-             for idx in xrange(3):                             # GP                               
-                 for jdx in xrange(len(heavy_atoms_idxs)):             # GP                              
+    if dmsc.iter > 0:
+         # save config. of heavy atoms at time step previous to application of bias force
+         if bs.step % dmsc.nstepbias == dmsc.nstepbias-1:
+             for idx in xrange(3):
+                 for jdx in xrange(len(heavy_atoms_idxs)):
+                     bs.store_coord[idx+3*jdx] = coord[idx,heavy_atoms_idxs[jdx]]
+         # compute monitor quantity at step subsequent to application of bias force
+         if (bs.step % dmsc.nstepbias == 1 and bs.step > 2*dmsc.nstepbias-1):
+             for idx in xrange(3):                              
+                 for jdx in xrange(len(heavy_atoms_idxs)):
                      bs.HH += (coord_heavy_atoms[idx,jdx]-bs.store_coord[idx+3*jdx])*bs.store_biasforce[idx+3*jdx]/2+(bs.vbias-bs.vbias_prev)
-             #print bs.HH # GP
+             #print bs.HH
 
          if bs.step % dmsc.nstepbias == 0:
              do_biased_force_low_level(nheavy_atoms, coord_heavy_atoms, force_heavy_atoms, vbias, dcs, dmsc, ft, feh)
              for jdx in xrange(dmsc.ndcs):
                  bs.dcs[jdx] = dcs[jdx]
-             # save vbias before updating it   # GP
-             bs.vbias_prev =  bs.vbias         # GP
+             # save vbias before updating it
+             bs.vbias_prev =  bs.vbias
              bs.vbias = vbias[0]
 
              for idx in xrange(3):
                  for jdx, atom_jdx in enumerate(heavy_atoms_idxs):
                      bs.force[idx+3*atom_jdx] += force_heavy_atoms[idx][jdx]*dmsc.nstepbias
-                     # store only bias force   # GP
-                     bs.store_biasforce[idx+3*jdx] = force_heavy_atoms[idx][jdx]*dmsc.nstepbias # GP
-            #print bs.force[0], bs.force[1], bs.force[3], force[0][1]
+                     # store only bias force
+                     bs.store_biasforce[idx+3*jdx] = force_heavy_atoms[idx][jdx]*dmsc.nstepbias
     else:
         bs.vbias = 0.0
 
     return 0
 
-
 cdef int do_biased_force_low_level(int natoms, np.ndarray[np.float64_t,ndim=2] coord, np.ndarray[np.float64_t,ndim=2] force, 
                                    double* vbias, double* dcs, DMSConfig *dmsc, Fit *ft, FEHist *feh):
 
     cdef unsigned int idx, jdx, kdx, ldx
-
-    cdef int isempty, bin_idx_s, num_line
-    cdef int idxtmp
-
-    cdef double* fe_value = <double *>malloc(sizeof(double))
-    cdef double* fe_gradient = <double *>malloc(dmsc.ndcs*sizeof(double))
     cdef double* wdf = <double *>malloc(dmsc.ndcs*sizeof(double))
-
     cdef fitfunction_type fitfunction, fitderivative
-
-    cdef np.ndarray[np.float64_t,ndim=1] steps = np.zeros(dmsc.ndcs)
-    cdef np.ndarray[np.int32_t,ndim=2] nebins_idxs = np.zeros((feh.nnebins,dmsc.ndcs), dtype='i4')
 
     cdef np.ndarray[np.float64_t,ndim=2] gradient_metric = np.zeros((3, natoms))
     cdef np.ndarray[np.float64_t,ndim=3] coordsfit = np.zeros((ft.npoints, 3, natoms))
     cdef np.ndarray[np.float64_t,ndim=3] gradient_dcs = np.zeros((dmsc.ndcs, 3, natoms))
+
+    cdef int* isempty = <int *>malloc(sizeof(int))
+    cdef double* fe_value = <double *>malloc(sizeof(double))
+    cdef double* fe_gradient = <double *>malloc(dmsc.ndcs*sizeof(double))
 
     fitfunction = setfitfunction(ft.function)
     fitderivative = setfitderivative(ft.function)
@@ -355,53 +363,74 @@ cdef int do_biased_force_low_level(int natoms, np.ndarray[np.float64_t,ndim=2] c
                 for jdx in xrange(dmsc.ndcs):
                     gradient_dcs[jdx, kdx, ldx] += wdf[jdx] * gradient_metric[kdx, ldx]
 
+    fe_value[0] = 0.0
+    for jdx in range(dmsc.ndcs):
+        fe_gradient[jdx] = 0.0
+
+    for ndx in range(dmsc.iter):
+        compute_free_energy_dcs(fe_value, fe_gradient, dcs, dmsc.iter-ndx-1, isempty, dmsc, feh)
+        if isempty[0] == 1:
+            break
+
+    vbias[0] -= dmsc.fefrac*fe_value[0]
+    for ldx in xrange(natoms):
+        for kdx in xrange(3):
+            for jdx in xrange(dmsc.ndcs):
+                force[kdx, ldx] += dmsc.fefrac*fe_gradient[jdx]*gradient_dcs[jdx, kdx, ldx]
+    return 0
+
+cdef int compute_free_energy_dcs(double* fe_value, double* fe_gradient, double* dcs, int iter, int* isempty, DMSConfig *dmsc, FEHist *feh):
+
+    cdef unsigned int mdx, idx, jdx, kdx, ldx
+    cdef int bin_idx_s, num_line
+    cdef int shift_nbins, shift_nnebins
+    cdef int idxtmp
+
+    cdef np.ndarray[np.int32_t,ndim=2] nebins_idxs = np.zeros((feh.nnebins[iter], dmsc.ndcs), dtype='i4')
+
+    shift_nbins = 0
+    for mdx in range(iter):
+        shift_nbins += feh.nbins[mdx]
+
+    shift_nnebins = 0
+    for mdx in range(iter):
+        shift_nnebins += feh.nnebins[mdx]
+
     # estimate the free energy of the current configuration and its derivative
     bin_idx_s = 0 # bin serial number
     bin_idxs = [] # bin indices
-    isempty = 1 # by default the bin is empty
+    isempty[0] = 1 # by default the bin is empty
 
     # compute the index of the bin within which the point is located
     for jdx in xrange(dmsc.ndcs):
-        index = int(floor((dcs[jdx] - feh.bins[feh.nbins*jdx])/feh.steps[jdx] + 0.5))
+        index = int(floor((dcs[jdx] - feh.bins[shift_nbins*dmsc.ndcs+feh.nbins[iter]*jdx])/feh.steps[iter*dmsc.ndcs+jdx] + 0.5))
         bin_idxs.append(index)
-        bin_idx_s += index*feh.nbins**(dmsc.ndcs-jdx-1)
+        bin_idx_s += index*feh.nbins[iter]**(dmsc.ndcs-jdx-1)
 
-    if any([idxtmp < 0 or idxtmp >= feh.nbins for idxtmp in bin_idxs]):
+    if any([idxtmp < 0 or idxtmp >= feh.nbins[iter] for idxtmp in bin_idxs]):
         # if the point is outside the grid, the serial number does not apply
-        isempty = 1
+        isempty[0] = 1
     else:
         # check if the bin is empty or not
-        for kdx in xrange(feh.nnebins):
-            if bin_idx_s == feh.nebins_idxs_s[kdx]: # non-empty bin found
+        for kdx in xrange(feh.nnebins[iter]):
+            if bin_idx_s == feh.nebins_idxs_s[shift_nnebins+kdx]: # non-empty bin found
                 num_line = kdx
-                isempty = 0
+                isempty[0] = 0
                 break
-            elif bin_idx_s < feh.nebins_idxs_s[kdx]: # the bin is empty
-                isempty = 1
+            elif bin_idx_s < feh.nebins_idxs_s[shift_nnebins+kdx]: # the bin is empty
+                isempty[0] = 1
                 break
 
     # estimate the value of the free energy and its gradient
-    if isempty == 0:
-        for jdx in xrange(dmsc.ndcs):
-            fe_value[0] = 0.0
-            fe_gradient[jdx] = 0.0
+    if isempty[0] == 0:
         # interpolate the free energy locally
-        local_fe_fit_voronoi(fe_value, fe_gradient, dcs, dmsc.ndcs, 5, feh, 0.6)
-        # update vbias and the biased force
-        vbias[0] = -dmsc.fefrac*fe_value[0]
-        for ldx in xrange(natoms):
-            for kdx in xrange(3):
-                for jdx in xrange(dmsc.ndcs):
-                    force[kdx, ldx] += dmsc.fefrac*fe_gradient[jdx]*gradient_dcs[jdx, kdx, ldx]
-    elif isempty == 1:
+        local_fe_fit_voronoi(fe_value, fe_gradient, dcs, dmsc.ndcs, 5, feh, iter, 0.6)
+    elif isempty[0] == 1:
         # vbias is set as minus the maximum value of the free energy
-        vbias[0] = 0.0
+        fe_value[0] += 0.0
         # the force is set as 0.0
-        for ldx in xrange(natoms):
-            for kdx in xrange(3):
-                force[kdx, ldx] = 0.0
-
-    return 0
+        for jdx in xrange(dmsc.ndcs):
+            fe_gradient[jdx] += 0.0
 
 cdef int save_data(np.ndarray[np.float64_t,ndim=2] coord, np.ndarray[np.float64_t,ndim=2] vel, heavy_atoms_idxs, BiasedMD *bs, DMSConfig *dmsc):
 
@@ -411,9 +440,9 @@ cdef int save_data(np.ndarray[np.float64_t,ndim=2] coord, np.ndarray[np.float64_
     w.close()
 
     with open('confall.w', 'a') as wfile:
-        print >> wfile, '%.18e' %(exp(bs.vbias/dmsc.kT))
+        print >> wfile, '%.18e'%(exp(bs.vbias/dmsc.kT))
 
-    if dmsc.isfirst == 0:
+    if dmsc.iter > 0:
         with open('confall.ev', 'a') as evfile:
             print >> evfile, ' '.join(['%.18e' % (bs.dcs[idx],) for idx in xrange(dmsc.ndcs)])
     return 0

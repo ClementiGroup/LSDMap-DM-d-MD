@@ -138,6 +138,7 @@ def compute_free_energy(grid, ndim, weights, cutoff, kT):
     # smooth the data
     if ndim == 2:
         free_energy_grid = smooth2a(free_energy_grid, 2, 2)
+
     free_energy_grid = np.copy(free_energy_grid) # without this line it fails
 
     # rescale so that the maximum value is 0

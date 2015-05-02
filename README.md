@@ -129,8 +129,7 @@ Diffusion-Map Sampling
 
 DMap Sampling (Diffusion Map Sampling) is our most recent adaptive sampling
 algorithm. It combines LSDMap and techniques from Umbrella Sampling, metadynamics
-and more recently, TRAM (Transition-based Reweighting Analysis Method) to offer
-the best way of exploring configuration spaces of macromolecular systems and
+to offer the best way of exploring configuration spaces of macromolecular systems and
 estimating their free energy landscapes.
 
 Besides LSDMap, DMap Sampling requires RADICAL-Pilot, a pilot-job system. 
