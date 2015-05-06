@@ -6,8 +6,10 @@ import ConfigParser
 import pickle
 import random
 import logging
+import gc
 
 from lsdmap.rw import reader
+from lsdmap.rw import coord_reader
 from lsdmap.mpi import p_arpack
 from lsdmap.mpi import p_index
 from lsdmap.util import metric as mt
@@ -23,49 +25,28 @@ class LSDMap(object):
 
         self.config = config
         self.args = args
- 
-        #struct_file = reader.open(args.struct_file)
-        #self.struct_filename = struct_file.filename
-        #self.npoints = struct_file.nlines
-        #self.natoms = struct_file.natoms
 
-        self.struct_filename = args.struct_file[0]
-        self.npoints,self.natoms = reader.get_npoints_natoms(self.struct_filename)
+        filename = args.struct_file[0] 
+        self.struct_filename = filename
+        self.npoints,self.natoms = coord_reader.get_nframes_natoms(filename)
 
-        self.idxs_thread,self.npoints_per_thread,self.offsets_per_thread = p_index.get_idxs_thread(comm, self.npoints)
-        
-        #if hasattr(struct_file, '_skip'): # multi-thread reading using ravel and Allgatherv
-        if size > 1: # multi-thread reading using ravel and Allgatherv
-            coords_thread = reader.get_coordinates(self.struct_filename, idxs=self.idxs_thread)
-            #coords_thread = struct_file.readlines(self.idxs_thread)
-            #coords_thread = np.random.rand(self.npoints_per_thread[rank],3,self.natoms).astype(float)
-            #if rank == 0:
-            #    print coords_thread.flags
-            #    print coords_thread[0].flags
-            #raise SystemExit
+        if coord_reader.supports_parallel_reading(filename): 
+            # read coordinates in parallel
+            self.idxs_thread, self.npoints_per_thread, self.offsets_per_thread = p_index.get_idxs_thread(comm, self.npoints)
+            coords_thread = coord_reader.get_coordinates(filename, idxs=self.idxs_thread)
             coords_ravel = coords_thread.ravel()
             ravel_lengths, ravel_offsets = p_index.get_ravel_offsets(self.npoints_per_thread,self.natoms)
             coordstemp = np.zeros(self.npoints*3*self.natoms, dtype='float')
-            #if rank == 0:
-            #    print ravel_lengths, ravel_offsets
             start = MPI.Wtime()
             comm.Allgatherv(coords_ravel, (coordstemp, ravel_lengths, ravel_offsets, MPI.DOUBLE))
-            print "Allgatherv  rank: ", rank, " ", MPI.Wtime() - start
-            self.coordsv = coordstemp.reshape((self.npoints,3,self.natoms))
-
-            start = MPI.Wtime()
-            self.coords = np.vstack(comm.allgather(coords_thread))
-            print "allgather   rank: ", rank, " ", MPI.Wtime() - start
-            
-            #if rank == 0:  # Are final arrays the same?
-            #    print np.allclose(self.coordsv,self.coords) # -> True
-            raise SystemExit
-        else: # serial reading
+            self.coords = coordstemp.reshape((self.npoints,3,self.natoms))
+        else: 
+            # serial reading
             if rank == 0:
-                self.coords = struct_file.readlines()
+                self.coords = coord_reader.get_coordinates(filename)
             else:
                 self.coords = np.zeros((self.npoints,3,self.natoms),dtype=np.double)
-            self.coords = comm.Bcast(self.coords, root=0) 
+            comm.Bcast(self.coords, root=0) 
 
         logging.info('input coordinates loaded')
 
@@ -74,6 +55,7 @@ class LSDMap(object):
         self.initialize_metric()
 
         self.neigs = 10
+        
 
     def initialize_local_scale(self):
 
@@ -238,10 +220,10 @@ class LSDMap(object):
             struct_filename = self.struct_filename
 
         path, ext = os.path.splitext(struct_filename)
-        #np.savetxt(path + '.eg', np.fliplr(self.eigs[np.newaxis]), fmt='%9.6f')
-        #np.savetxt(path + '.ev', np.fliplr(self.evs), fmt='%.18e')
-        np.save(path + '_eg.npy', np.fliplr(self.eigs[np.newaxis]))
-        np.save(path + '_ev.npy', np.fliplr(self.evs))
+        np.savetxt(path + '.eg', np.fliplr(self.eigs[np.newaxis]), fmt='%9.6f')
+        np.savetxt(path + '.ev', np.fliplr(self.evs), fmt='%.18e')
+        #np.save(path + '_eg.npy', np.fliplr(self.eigs[np.newaxis]))
+        #np.save(path + '_ev.npy', np.fliplr(self.evs))
 
         if args.output_file is None:
             try:
@@ -316,7 +298,7 @@ class LSDMap(object):
         return distance_matrix_thread
          
     def save_distance_matrix(self, comm, args, distance_matrix_thread):
-        
+        """ Save distance matrix as binary numpy file """ 
         size = comm.Get_size()  # number of threads
         rank = comm.Get_rank()  # number of the current thread
         if rank == 0:
@@ -324,13 +306,13 @@ class LSDMap(object):
                 os.remove(args.dmfile)
             except OSError:
                 pass
-            dmfile = open(args.dmfile, 'a+b')
+            dmfile = open(args.dmfile, 'a')
             for idx in xrange(size):
                 if idx == 0:
                     distance_matrix = distance_matrix_thread
                 else:
                     distance_matrix = comm.recv(source=idx, tag=idx)
-                np.save(dmfile, distance_matrix)
+                np.savetxt(dmfile, distance_matrix)
             dmfile.close()
         else:
             comm.send(distance_matrix_thread, dest=0, tag=rank)
@@ -363,7 +345,6 @@ class LSDMap(object):
             logging.error("number of threads should be less than the number of frames")
             raise ValueError
 
-        #npoints_thread = len(self.idxs_thread)
         npoints_thread = self.npoints_per_thread[rank]
         coords_thread = np.array([self.coords[idx] for idx in self.idxs_thread])
         weights_thread = np.array([self.weights[idx] for idx in self.idxs_thread])
@@ -382,7 +363,7 @@ class LSDMap(object):
 
         # compute kth neighbor local scales if needed
         if self.status_epsilon in ['kneighbor', 'kneighbor_mean']:
-            epsilon_thread = []
+            #epsilon_thread = []
             epsilon_threadv = np.zeros(npoints_thread,dtype='float')
             for idx, line in enumerate(idx_neighbor_matrix_thread):
                 cum_weight = 0
@@ -390,18 +371,11 @@ class LSDMap(object):
                     cum_weight += self.weights[jdx]
                     if cum_weight >= self.k:
                         break
-                epsilon_thread.append(distance_matrix_thread[idx,jdx])
+                #epsilon_thread.append(distance_matrix_thread[idx,jdx])
                 epsilon_threadv[idx] = distance_matrix_thread[idx,jdx]
 
-            start = MPI.Wtime()
-            self.epsilonv = np.zeros(self.npoints, dtype='float')
-            comm.Allgatherv(epsilon_threadv, [self.epsilonv, self.npoints_per_thread, self.offsets_per_thread, MPI.DOUBLE ])
-            print "Allgatherv  rank: ", rank, " ", MPI.Wtime() - start
-
-            start = MPI.Wtime()
-            self.epsilon = np.hstack(comm.allgather(epsilon_thread)) # gather epsilon values
-            print "allgather   rank: ", rank, " ", MPI.Wtime() - start
-            print "agreement   rank: ", rank, " ",np.allclose(self.epsilonv,self.epsilon)
+            self.epsilon = np.zeros(self.npoints, dtype='float')
+            comm.Allgatherv(epsilon_threadv, (self.epsilon, self.npoints_per_thread, self.offsets_per_thread, MPI.DOUBLE))
 
             if self.status_epsilon == 'kneighbor_mean':
                 mean_value_epsilon = np.mean(self.epsilon) # compute the mean value of the local scales
@@ -433,7 +407,7 @@ class LSDMap(object):
 
         logging.info("kernel diagonalized")
     
-        if rank ==0:    
+        if rank == 0:    
             self.save(config, args)
         logging.info("Eigenvalues/eigenvectors saved (.eg/.ev files)")
 
