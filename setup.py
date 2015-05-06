@@ -95,10 +95,6 @@ ext_modules = [Extension(
     library_dirs=[sys.prefix + '/' + 'lib'],
     include_dirs=[numpy_include],
     ), Extension(
-    name='dmaps/ctram/ctramfe',
-    sources=["dmaps/ctram/ctramfe.pyx"],
-    include_dirs=[numpy_include],
-    ), Extension(
     name='dmaps/tools/voronoi',
     sources=["dmaps/tools/voronoi.pyx"],
     include_dirs=[numpy_include],
@@ -106,14 +102,10 @@ ext_modules = [Extension(
     name='dmaps/tools/rbf',
     sources=["dmaps/tools/rbf.pyx"],
     include_dirs=[numpy_include],
-    ), Extension(
-    name='dmaps/ctram/wrapper',
-    sources=["dmaps/ctram/wrapper.pyx", "dmaps/ctram/ctram.c"],
-    include_dirs=[numpy_include],
     )]
 
 setup(name='lsdmap',
-      packages=['lsdmap', 'lsdmap.mpi', 'lsdmap.rw', 'lsdmap.util', 'lsdmap.rbf', 'dmdmd', 'dmdmd.tools', 'dmaps', 'dmaps.critical', 'dmaps.tools', 'dmaps.ctram'],
+      packages=['lsdmap', 'lsdmap.mpi', 'lsdmap.rw', 'lsdmap.util', 'lsdmap.rbf', 'dmdmd', 'dmdmd.tools', 'dmaps', 'dmaps.critical', 'dmaps.tools'],
       scripts = ['bin/lsdmap','bin/dmdmd', 'bin/dmaps', 'bin/rbffit','bin/reweighting','bin/selection','bin/p_mdrun', 'bin/p_mdrun_d'],
       ext_modules = cythonize(ext_modules),
       cmdclass = cmdclass,
