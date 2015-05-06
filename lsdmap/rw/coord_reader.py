@@ -9,6 +9,7 @@ Goal:
 """
 
 import numpy as np
+import linecache
 
 global supported_formats
 supported_formats = ["gro","xtc"]
@@ -100,9 +101,10 @@ def xtc_nframes(filename):
 # Format specific helper functions: gro format
 #############################################################################
 def gro_coords(filename,idxs=None):
-    """ Get the coordinates """
+    """ Get the coordinates. gro files have fixed number of lines per frame """
     
-    nframes, natoms, framesize = gro_nframes(filename)
+    nframes, natoms, framesize, lines_per_frame = gro_nframes(filename)
+    
     grabxyz = lambda x: [float(x.split()[3]),float(x.split()[4]),float(x.split()[5])]
 
     if idxs is not None:
@@ -110,25 +112,25 @@ def gro_coords(filename,idxs=None):
         coords = np.zeros((nframes,3,natoms),dtype="float")
         with open(filename,"rb") as f:
             for i in xrange(nframes):
-                # Seek to frame of interest
-                f.seek(idxs[i]*framesize)
-                frame = f.read(framesize).split("\n")[2:2+natoms]
-                # Parse coordinates from frame
-                coords[i,:,:] = np.array(map(grabxyz,frame),dtype="float").T
-                 
+                for j in xrange(1,natoms + 1):
+                    # Parse coordinates from frame
+                    line_num = (lines_per_frame*idxs[i]) + 2 + j
+                    framexyz = grabxyz(linecache.getline(filename,line_num))
+                    coords[i,:,j - 1] = np.array(framexyz,dtype="float")
     else:
         coords = np.zeros((nframes,3,natoms),dtype="float")
         with open(filename,"rb") as f:
             for i in xrange(nframes):
-                frame = f.read(framesize).split("\n")[2:2+natoms]
-                # Parse coordinates from frame
-                coords[i,:,:] = np.array(map(grabxyz,frame),dtype="float").T
+                for j in xrange(1,natoms + 1):
+                    # Parse coordinates from frame
+                    line_num = (lines_per_frame*i) + 2 + j
+                    framexyz = grabxyz(linecache.getline(filename,line_num))
+                    coords[i,:,j - 1] = np.array(framexyz,dtype="float")
 
     return coords
 
-
 def gro_nframes(filename):
-    """ Get the number atoms and frames"""
+    """ Get the number atoms and frames """
 
     with open(filename) as f:
         f.readline()
@@ -151,8 +153,68 @@ def gro_nframes(filename):
     with open(filename) as f:
         for i in xrange(lines_per_frame):
             framesize += len(f.readline())
-    return nframes, natoms, framesize
+    return nframes, natoms, framesize, lines_per_frame
 
 #############################################################################
 # Format specific helper functions: xyz format
 #############################################################################
+def xyz_coords(filename,idxs=None):
+    """ Get the coordinates """
+    
+    raise NotImplementedError
+
+    nframes, natoms, framesize, lines_per_frame = gro_nframes(filename)
+    
+    grabxyz = lambda x: [float(x.split()[3]),float(x.split()[4]),float(x.split()[5])]
+
+    if idxs is not None:
+        nframes = len(idxs)
+        coords = np.zeros((nframes,3,natoms),dtype="float")
+        with open(filename,"rb") as f:
+            for i in xrange(nframes):
+                # Seek to frame of interest
+                f.seek(idxs[i]*framesize)
+                frame = f.read(framesize).split("\n")[2:2+natoms]
+                print frame
+                # Parse coordinates from frame
+                coords[i,:,:] = np.array(map(grabxyz,frame),dtype="float").T
+    else:
+        coords = np.zeros((nframes,3,natoms),dtype="float")
+        with open(filename,"rb") as f:
+            for i in xrange(nframes):
+                frame = f.read(framesize).split("\n")[2:2+natoms]
+                # Parse coordinates from frame
+                coords[i,:,:] = np.array(map(grabxyz,frame),dtype="float").T
+
+    return coords
+
+def xyz_nframes(filename):
+    """ Get the number atoms and frames """
+
+    with open(filename) as f:
+        f.readline()
+        firstline = f.readline()
+        firstbytes = len(firstline)
+        natoms = int(firstline)
+    lines_per_frame = natoms
+
+    # Get line count without loading whole file into memory
+    with open(filename) as f:
+        for i, l in enumerate(f):
+            pass
+    nlines = i + 1
+
+    if ((nlines - 1) % lines_per_frame) != 0:
+        raise IOError("Number of lines does not evenly divide ")
+    else:
+        nframes = (nlines - 1)/lines_per_frame
+
+    # Get framesize in bytes
+    framesize = 0
+    with open(filename) as f:
+        firstline = f.readline()
+        for i in xrange(lines_per_frame):
+            framesize += len(f.readline())
+
+    return nframes, natoms, framesize, lines_per_frame
+
