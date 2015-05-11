@@ -2,7 +2,7 @@ LSDMap
 ======
 
 LSDMap package is used to compute Locally Scaled Diffusion Map. 
-Typical usage is to call "lsdmap" script:
+Typical usage is to call the "lsdmap" script:
 
 	lsdmap -f <configuration_file> -c <structure_file> <other_options>
 
@@ -30,7 +30,7 @@ packages installed:
 
 * mpi4py; version 1.0 or larger
 
-* cython; version 0.21 or later
+* cython; version 0.20 or later
 
 Version 2.6.x or 2.7.x of python should be used. 
 
@@ -81,7 +81,6 @@ For more information on lsdmap command, simply type:
 
 
 
-
 DM-d-MD
 =======
 
@@ -121,23 +120,13 @@ executing the command:
 within the specified folder.
 
 
-
-
-
 Diffusion-Map Sampling
 ======================
 
 DMap Sampling (Diffusion Map Sampling) is our most recent adaptive sampling
 algorithm. It combines LSDMap and techniques from Umbrella Sampling, metadynamics
-to offer the best way of exploring configuration spaces of macromolecular systems and
-estimating their free energy landscapes.
-
-Besides LSDMap, DMap Sampling requires RADICAL-Pilot, a pilot-job system. 
-Using RADICAL-Pilot implies that the user prepares the necessary input
-files on their local workstation, and launches the job from there, but
-the calculations are then performed on the execution host, which is
-typically an HPC resource. To install RADICAL-Pilot, see the paragraph
-Installation below.
+to offer the best way of exploring configuration spaces of macromolecular
+systems and estimating their free energy landscapes.
 
 DMap Sampling consists in conducting biased Molecular Dynamics simulations (MD)
 where the biased potential is a local estimate of the free energy of the 
@@ -151,35 +140,24 @@ it, see the paragraph Installation below.
 Installation
 ------------
 
-As mentioned above, DMap Sampling uses RADICAL-Pilot -- see the website
-http://radicalpilot.readthedocs.org/en/latest/ for more information -- implying
-that a typical DMap Sampling job is launched from the local workstation whereas
-heavy computations which require the utilization of many CPUs (e.g., to conduct
-biased MD simulation, to compute LSDMap, ...) will be performed on a remote host.
-The above procedure implies:
+In order to use DMap sampling, one should meet the following requirements:
 
-1. Password-less ssh login to the remote host.
+1. Installing the LSDMap package from the 'dmaps' branch, i.e., by first using:
 
-2. Installing the LSDMap package on both the local workstation and the remote 
-machine -- see above regarding the installation of LSDMap.
+	git checkout dmaps
 
-3. Installing RADICAL-Pilot and make sure it is well configured to work on the
-remote host. For example, RADICAL-Pilot can be installed using pip, see the website
-http://radicalpilot.readthedocs.org/en/latest/installation.html for more information.
-RADICAL-Pilot has been designed to work with many different HPC clusters, located
-in many countries (e.g. “archer”, located at EPSRC, UK, "davinci", located at Rice
-University, Houston, USA). To consult the list of pre-configured ressources, see:
-http://radicalpilot.readthedocs.org/en/latest/resources.html#chapter-resources.
-If your remote machine is not in the list, you will need to write a custom Resource 
-Configuration File. See the instructions on the following webpage:
-http://radicalpilot.readthedocs.org/en/latest/machconf.html#writing-a-custom-resource-configuration-file
-To make sure RADICAL-Pilot is working well, see: http://radicalpilot.readthedocs.org/en/latest/testing.html
+then installing the lsdmap package using 
 
-4. Installing a regular version of GROMACS on the local workstation. See:
-   http://www.gromacs.org/ for more information.
+	python setup.py install
 
-5. Installing the modified (serial, simple precision) version of GROMACS on the
-   remote machine. The package can be git-cloned using the following command:
+Note that this version of LSDMap requires a shared ".so" library of python.
+This library can be generated during the installation of python by using the
+option "--enable-shared" when configuring python:
+
+	./configure --enable-shared ...
+
+2. Installing the modified (serial, simple precision) version of GROMACS. The
+package can be git-cloned using the following command:
 
 	git clone git://git.code.sf.net/p/dmaps-gromacs/code dmaps-gromacs-code
 
@@ -222,18 +200,8 @@ To make sure RADICAL-Pilot is working well, see: http://radicalpilot.readthedocs
 
 	make install
 
-You have installed all the prerequisites needed to use Diffusion Map Sampling!
-
-
 Testing
 -------
-
-The folder examples/dmaps contains a set of files that can be used to run
-Diffusion Map Sampling on the Rice University cluster BlueBiou. If you want
-to run DMap Sampling on a different remote host, please change the parameter
-"remote_host" in the file settings of the example folder. Note that the parameters
-uname and queue in this file correspond to the username and the name of the
-queue on the remote host, respectively, and should be updated by the user.
 
 To run Diffusion Map Sampling, use the following command from the examples/dmaps
 directory:
