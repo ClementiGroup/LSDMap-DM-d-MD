@@ -4,6 +4,7 @@ import cython
 import copy
 import pyqcprot
 import util
+import pyemma
 
 global MAXSIZE
 MAXSIZE = 5E8

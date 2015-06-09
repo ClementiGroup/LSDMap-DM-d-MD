@@ -32,6 +32,8 @@ packages installed:
 
 * cython; version 0.20 or later
 
+* pyemma; only for tica option of dmaps necessary
+ 
 Version 2.6.x or 2.7.x of python should be used. 
 
 

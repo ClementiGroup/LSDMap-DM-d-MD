@@ -110,7 +110,11 @@ class LSDMap(object):
 
         config = self.config
         self.metric = config.get('LSDMAP','metric')
-
+        
+        self.lag = {}
+        if self.metric == 'tica':
+	    self.lag = config.get('LSDMAP','lag')
+        
         self.metric_prms = {}
         for prm in _known_prms:
             try:
