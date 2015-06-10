@@ -7,6 +7,7 @@ import numpy as np
 from mpi4py import MPI
 
 from lsdmap.rw import reader
+from lsdmap.rw import coord_reader
 from lsdmap.rw import writer
 from lsdmap.mpi import p_index
 from lsdmap.util import metric as mt
@@ -119,6 +120,8 @@ class RbfFit(object):
         return sigma
 
     def get_weights(self, comm):
+        rank = comm.Get_rank()
+        size = comm.Get_size()
 
         # compute the distance matrix if needed
         if self.distance_matrix is None:
@@ -126,6 +129,7 @@ class RbfFit(object):
             #idxs_thread = p_index.get_idxs_thread(comm, self.npoints)
             #npoints_thread = len(idxs_thread)
             #coords_thread = np.array([self.coords[idx] for idx in idxs_thread])
+            self.idxs_thread, self.npoints_per_thread, self.offsets_per_thread = p_index.get_idxs_thread(comm, self.npoints)
             npoints_thread = self.npoints_per_thread[rank]
             coords_thread = np.array([self.coords[idx] for idx in self.idxs_thread])
             DistanceMatrix = mt.DistanceMatrix(coords_thread, self.coords, metric=self.metric, metric_prms=self.metric_prms)
@@ -160,6 +164,9 @@ class RbfFit(object):
 class RbfExe(object):
 
     def initialize(self, comm, config, args):
+
+        rank = comm.Get_rank()
+        size = comm.Get_size()
 
         self.config = config
         self.args = args
