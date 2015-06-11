@@ -243,7 +243,7 @@ class RbfExe(object):
                 ravel_lengths, ravel_offsets = p_index.get_ravel_offsets(self.npoints_per_thread_embed,self.natoms_embed)
                 coordstemp_embed = np.zeros(self.npoints_embed*3*self.natoms_embed, dtype='float')
                 comm.Allgatherv(coords_ravel, (coordstemp_embed, ravel_lengths, ravel_offsets, MPI.DOUBLE))
-                self.coords_embed = coordstemp.reshape((self.npoints_embed,3,self.natoms_embed))
+                self.coords_embed = coordstemp_embed.reshape((self.npoints_embed,3,self.natoms_embed))
             else: 
                 # serial reading
                 if rank == 0:
