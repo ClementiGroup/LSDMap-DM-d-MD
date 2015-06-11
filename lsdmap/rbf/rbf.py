@@ -193,27 +193,6 @@ class RbfExe(object):
                 self.coords = np.zeros((self.npoints,3,self.natoms),dtype=np.double)
             comm.Bcast(self.coords, root=0) 
 
-        # load configurations
-        #format_struct_file = os.path.splitext(args.struct_file[0])[1]
-        #if format_struct_file == '.gro': # use lsdmap reader
-        #    struct_file = reader.open(args.struct_file)
-        #    self.npoints = struct_file.nlines
-        #    idxs_thread = p_index.get_idxs_thread_v(comm, self.npoints)
-        #    coords_thread = struct_file.readlines(idxs_thread)
-        #    self.coords = np.vstack(comm.allgather(coords_thread))
-        #else: # use numpy
-        #    rank = comm.Get_rank()
-        #    if rank == 0:
-        #        coords = np.loadtxt(args.struct_file[0])
-        #        if len(coords.shape)==0:
-        #            self.coords = coords[:, np.newaxis, np.newaxis] 
-        #        else:
-        #            self.coords = coords[:, :, np.newaxis]
-        #    else:
-        #        self.coords = None
-        #    self.coords = comm.bcast(self.coords, root=0)
-        #    self.npoints = self.coords.shape[0]
-
         logging.info('input coordinates loaded')
 
         # load file of values
@@ -240,21 +219,38 @@ class RbfExe(object):
             self.ksigma = config.getint(self.args.section,'ksigma')
 
         if args.embed_file is not None:
-            embed_file = reader.open(args.embed_file)
-            self.embed_filename = embed_file.filename
-            self.npoints_embed = embed_file.nlines
-
-            self.idxs_thread_embed = p_index.get_idxs_thread_v(comm, self.npoints_embed)
-
-            if hasattr(embed_file, '_skip'): # multi-thread reading
-                coords_thread_embed = embed_file.readlines(self.idxs_thread_embed)
-                self.coords_embed = np.vstack(comm.allgather(coords_thread_embed))
-            else: # serial reading
+            #embed_file = reader.open(args.embed_file)
+            #self.embed_filename = embed_file.filename
+            #self.npoints_embed = embed_file.nlines
+            #self.idxs_thread_embed = p_index.get_idxs_thread_v(comm, self.npoints_embed)
+            #if hasattr(embed_file, '_skip'): # multi-thread reading
+            #    coords_thread_embed = embed_file.readlines(self.idxs_thread_embed)
+            #    self.coords_embed = np.vstack(comm.allgather(coords_thread_embed))
+            #else: # serial reading
+            #    if rank == 0:
+            #        self.coords_embed = embed_file.readlines()
+            #    else:
+            #        self.coords_embed = None
+            #    self.coords_embed = comm.bcast(self.coords_embed, root=0)
+            filename_embed = args.embed_file
+            self.embed_filename = filename_embed
+            self.npoints_embed,self.natoms_embed = coord_reader.get_nframes_natoms(filename_embed)
+            if coord_reader.supports_parallel_reading(filename_embed): 
+                # read coordinates in parallel
+                self.idxs_thread_embed, self.npoints_per_thread_embed, self.offsets_per_thread_embed = p_index.get_idxs_thread(comm, self.npoints_embed)
+                coords_thread_embed = coord_reader.get_coordinates(filename_embed, idxs=self.idxs_thread_embed)
+                coords_ravel_embed = coords_thread_embed.ravel()
+                ravel_lengths, ravel_offsets = p_index.get_ravel_offsets(self.npoints_per_thread_embed,self.natoms_embed)
+                coordstemp_embed = np.zeros(self.npoints_embed*3*self.natoms_embed, dtype='float')
+                comm.Allgatherv(coords_ravel, (coordstemp_embed, ravel_lengths, ravel_offsets, MPI.DOUBLE))
+                self.coords_embed = coordstemp.reshape((self.npoints_embed,3,self.natoms_embed))
+            else: 
+                # serial reading
                 if rank == 0:
-                    self.coords_embed = embed_file.readlines()
+                    self.coords_embed = coord_reader.get_coordinates(filename_embed)
                 else:
-                    self.coords_embed = None
-                self.coords_embed = comm.bcast(self.coords_embed, root=0)
+                    self.coords_embed = np.zeros((self.npoints_embed,3,self.natoms_embed),dtype=np.double)
+                comm.Bcast(self.coords_embed, root=0) 
 
 
     def initialize_metric(self):
