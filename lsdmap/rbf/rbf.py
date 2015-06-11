@@ -7,6 +7,7 @@ import numpy as np
 from mpi4py import MPI
 
 from lsdmap.rw import reader
+from lsdmap.rw import coord_reader
 from lsdmap.rw import writer
 from lsdmap.mpi import p_index
 from lsdmap.util import metric as mt
@@ -119,14 +120,18 @@ class RbfFit(object):
         return sigma
 
     def get_weights(self, comm):
+        rank = comm.Get_rank()
+        size = comm.Get_size()
 
         # compute the distance matrix if needed
         if self.distance_matrix is None:
             logging.info("distance matrix not provided, computing it...")
-
-            idxs_thread = p_index.get_idxs_thread_v(comm, self.npoints)
-            npoints_thread = len(idxs_thread)
-            coords_thread = np.array([self.coords[idx] for idx in idxs_thread])
+            #idxs_thread = p_index.get_idxs_thread(comm, self.npoints)
+            #npoints_thread = len(idxs_thread)
+            #coords_thread = np.array([self.coords[idx] for idx in idxs_thread])
+            self.idxs_thread, self.npoints_per_thread, self.offsets_per_thread = p_index.get_idxs_thread(comm, self.npoints)
+            npoints_thread = self.npoints_per_thread[rank]
+            coords_thread = np.array([self.coords[idx] for idx in self.idxs_thread])
             DistanceMatrix = mt.DistanceMatrix(coords_thread, self.coords, metric=self.metric, metric_prms=self.metric_prms)
             self.distance_matrix = np.vstack(comm.allgather(DistanceMatrix.distance_matrix))
             logging.info("distance matrix computed")
@@ -160,30 +165,34 @@ class RbfExe(object):
 
     def initialize(self, comm, config, args):
 
+        rank = comm.Get_rank()
+        size = comm.Get_size()
+
         self.config = config
         self.args = args
 
-        # load configurations
-        format_struct_file = os.path.splitext(args.struct_file[0])[1]
-        if format_struct_file == '.gro': # use lsdmap reader
-            struct_file = reader.open(args.struct_file)
-            self.npoints = struct_file.nlines
+        filename = args.struct_file[0] 
+        self.struct_filename = filename
+        self.npoints,self.natoms = coord_reader.get_nframes_natoms(filename)
 
-            idxs_thread = p_index.get_idxs_thread_v(comm, self.npoints)
-            coords_thread = struct_file.readlines(idxs_thread)
-            self.coords = np.vstack(comm.allgather(coords_thread))
-        else: # use numpy
-            rank = comm.Get_rank()
+        if coord_reader.supports_parallel_reading(filename): 
+            # read coordinates in parallel
+            self.idxs_thread, self.npoints_per_thread, self.offsets_per_thread = p_index.get_idxs_thread(comm, self.npoints)
+            coords_thread = coord_reader.get_coordinates(filename, idxs=self.idxs_thread)
+            coords_ravel = coords_thread.ravel()
+            ravel_lengths, ravel_offsets = p_index.get_ravel_offsets(self.npoints_per_thread,self.natoms)
+            coordstemp = np.zeros(self.npoints*3*self.natoms, dtype='float')
+            start = MPI.Wtime()
+            comm.Allgatherv(coords_ravel, (coordstemp, ravel_lengths, ravel_offsets, MPI.DOUBLE))
+            self.coords = coordstemp.reshape((self.npoints,3,self.natoms))
+        else: 
+            # serial reading
             if rank == 0:
-                coords = np.loadtxt(args.struct_file[0])
-                if len(coords.shape)==0:
-                    self.coords = coords[:, np.newaxis, np.newaxis] 
-                else:
-                    self.coords = coords[:, :, np.newaxis]
+                self.coords = coord_reader.get_coordinates(filename)
             else:
-                self.coords = None
-            self.coords = comm.bcast(self.coords, root=0)
-            self.npoints = self.coords.shape[0]
+                self.coords = np.zeros((self.npoints,3,self.natoms),dtype=np.double)
+            comm.Bcast(self.coords, root=0) 
+
         logging.info('input coordinates loaded')
 
         # load file of values
@@ -210,21 +219,38 @@ class RbfExe(object):
             self.ksigma = config.getint(self.args.section,'ksigma')
 
         if args.embed_file is not None:
-            embed_file = reader.open(args.embed_file)
-            self.embed_filename = embed_file.filename
-            self.npoints_embed = embed_file.nlines
-
-            self.idxs_thread_embed = p_index.get_idxs_thread_v(comm, self.npoints_embed)
-
-            if hasattr(embed_file, '_skip'): # multi-thread reading
-                coords_thread_embed = embed_file.readlines(self.idxs_thread_embed)
-                self.coords_embed = np.vstack(comm.allgather(coords_thread_embed))
-            else: # serial reading
+            #embed_file = reader.open(args.embed_file)
+            #self.embed_filename = embed_file.filename
+            #self.npoints_embed = embed_file.nlines
+            #self.idxs_thread_embed = p_index.get_idxs_thread_v(comm, self.npoints_embed)
+            #if hasattr(embed_file, '_skip'): # multi-thread reading
+            #    coords_thread_embed = embed_file.readlines(self.idxs_thread_embed)
+            #    self.coords_embed = np.vstack(comm.allgather(coords_thread_embed))
+            #else: # serial reading
+            #    if rank == 0:
+            #        self.coords_embed = embed_file.readlines()
+            #    else:
+            #        self.coords_embed = None
+            #    self.coords_embed = comm.bcast(self.coords_embed, root=0)
+            filename_embed = args.embed_file
+            self.embed_filename = filename_embed
+            self.npoints_embed,self.natoms_embed = coord_reader.get_nframes_natoms(filename_embed)
+            if coord_reader.supports_parallel_reading(filename_embed): 
+                # read coordinates in parallel
+                self.idxs_thread_embed, self.npoints_per_thread_embed, self.offsets_per_thread_embed = p_index.get_idxs_thread(comm, self.npoints_embed)
+                coords_thread_embed = coord_reader.get_coordinates(filename_embed, idxs=self.idxs_thread_embed)
+                coords_ravel_embed = coords_thread_embed.ravel()
+                ravel_lengths, ravel_offsets = p_index.get_ravel_offsets(self.npoints_per_thread_embed,self.natoms_embed)
+                coordstemp_embed = np.zeros(self.npoints_embed*3*self.natoms_embed, dtype='float')
+                comm.Allgatherv(coords_ravel, (coordstemp_embed, ravel_lengths, ravel_offsets, MPI.DOUBLE))
+                self.coords_embed = coordstemp_embed.reshape((self.npoints_embed,3,self.natoms_embed))
+            else: 
+                # serial reading
                 if rank == 0:
-                    self.coords_embed = embed_file.readlines()
+                    self.coords_embed = coord_reader.get_coordinates(filename_embed)
                 else:
-                    self.coords_embed = None
-                self.coords_embed = comm.bcast(self.coords_embed, root=0)
+                    self.coords_embed = np.zeros((self.npoints_embed,3,self.natoms_embed),dtype=np.double)
+                comm.Bcast(self.coords_embed, root=0) 
 
 
     def initialize_metric(self):
