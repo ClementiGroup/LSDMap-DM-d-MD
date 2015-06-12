@@ -29,6 +29,7 @@ class LSDMap(object):
         if args.struct_file!=None:
           filename = args.struct_file[0] 
           self.struct_filename = filename
+          print filename
         metric=config.get('LSDMAP','metric')        
         print metric
 	if metric=='tica':
@@ -48,6 +49,7 @@ class LSDMap(object):
 
           if coord_reader.supports_parallel_reading(filename): 
             # read coordinates in parallel
+            self.idxs_thread, self.npoints_per_thread, self.offsets_per_thread = p_index.get_idxs_thread(comm, self.npoints)
             coords_thread = coord_reader.get_coordinates(filename, idxs=self.idxs_thread)
             coords_ravel = coords_thread.ravel()
             ravel_lengths, ravel_offsets = p_index.get_ravel_offsets(self.npoints_per_thread,self.natoms)
@@ -148,7 +150,7 @@ class LSDMap(object):
             type=str,
             dest="struct_file",
             #required=True,
-            #nargs='*',
+            nargs='*',
             help = 'Structure file (input): gro, xvg')
 
         # other options
