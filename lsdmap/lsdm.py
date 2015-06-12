@@ -25,14 +25,29 @@ class LSDMap(object):
 
         self.config = config
         self.args = args
+        print self.args
+        if args.struct_file!=None:
+          filename = args.struct_file[0] 
+          self.struct_filename = filename
+        metric=config.get('LSDMAP','metric')        
+        print metric
+	if metric=='tica':
+	  trajectoryfile = config.get('TICA','trajectoryfile') #traj.trr'
+          topology = config.get('TICA','topology') #'helix.gro'
+          import mdtraj as md
+          fil=md.load(trajectoryfile, top=topology)
+          print fil.n_frames
+          print fil.n_atoms
+          self.npoints=fil.n_frames
+          self.natoms=fil.n_atoms
+          self.idxs_thread, self.npoints_per_thread, self.offsets_per_thread = p_index.get_idxs_thread(comm, self.npoints)
+          coordstemp = np.zeros(self.npoints*3*self.natoms, dtype='float')
+          self.coords = coordstemp.reshape((self.npoints,3,self.natoms))
+        else:
+          self.npoints,self.natoms = coord_reader.get_nframes_natoms(filename)
 
-        filename = args.struct_file[0] 
-        self.struct_filename = filename
-        self.npoints,self.natoms = coord_reader.get_nframes_natoms(filename)
-
-        if coord_reader.supports_parallel_reading(filename): 
+          if coord_reader.supports_parallel_reading(filename): 
             # read coordinates in parallel
-            self.idxs_thread, self.npoints_per_thread, self.offsets_per_thread = p_index.get_idxs_thread(comm, self.npoints)
             coords_thread = coord_reader.get_coordinates(filename, idxs=self.idxs_thread)
             coords_ravel = coords_thread.ravel()
             ravel_lengths, ravel_offsets = p_index.get_ravel_offsets(self.npoints_per_thread,self.natoms)
@@ -40,7 +55,7 @@ class LSDMap(object):
             start = MPI.Wtime()
             comm.Allgatherv(coords_ravel, (coordstemp, ravel_lengths, ravel_offsets, MPI.DOUBLE))
             self.coords = coordstemp.reshape((self.npoints,3,self.natoms))
-        else: 
+          else: 
             # serial reading
             if rank == 0:
                 self.coords = coord_reader.get_coordinates(filename)
@@ -111,10 +126,6 @@ class LSDMap(object):
         config = self.config
         self.metric = config.get('LSDMAP','metric')
         
-        self.lag = {}
-        if self.metric == 'tica':
-	    self.lag = config.get('LSDMAP','lag')
-        
         self.metric_prms = {}
         for prm in _known_prms:
             try:
@@ -136,8 +147,8 @@ class LSDMap(object):
         parser.add_argument("-c",
             type=str,
             dest="struct_file",
-            required=True,
-            nargs='*',
+            #required=True,
+            #nargs='*',
             help = 'Structure file (input): gro, xvg')
 
         # other options
@@ -198,18 +209,23 @@ class LSDMap(object):
         # compute LSDMap kernel, Eq. (5) of the above paper
         kernel = np.sqrt((weights_thread[:, np.newaxis]).dot(self.weights[np.newaxis])) * \
                  np.exp(-distance_matrix_thread**2/(2*epsilon_thread[:, np.newaxis].dot(self.epsilon[np.newaxis])))
-
+        print "part1", np.sqrt((weights_thread[:, np.newaxis]).dot(self.weights[np.newaxis]))
+        print "part2", np.exp(-distance_matrix_thread**2/(2*epsilon_thread[:, np.newaxis].dot(self.epsilon[np.newaxis])))
+        print "part3", np.exp(-distance_matrix_thread**2)
+        print "part4", -distance_matrix_thread
+        print "part5", epsilon_thread[:, np.newaxis]
+        print "part5", self.epsilon[np.newaxis] 
+        print "kernel1", kernel
         p_vector_thread = np.sum(kernel, axis=1)
         p_vector = np.hstack(comm.allgather(p_vector_thread)) # Eq. (6)
         self.p_vector = p_vector
-
+        print "p_vector",p_vector
         kernel /= np.sqrt(p_vector_thread[:,np.newaxis].dot(p_vector[np.newaxis])) # Eq. (7)
         d_vector_thread = np.sum(kernel, axis=1)
         d_vector = np.hstack(comm.allgather(d_vector_thread)) # Compute D given between Eqs. (7) and (8)
         self.d_vector = d_vector
-
+        print "d_vector",d_vector
         kernel /= np.sqrt(d_vector_thread[:,np.newaxis].dot(d_vector[np.newaxis])) # Eq (8) (slightly modified)
-
         return kernel
 
 
@@ -217,11 +233,13 @@ class LSDMap(object):
         """
         save LSDMap object in .lsdmap file and eigenvalues/eigenvectors in .eg/.ev files
         """
-
-        if isinstance(self.struct_filename, list):
+        if self.metric!='tica':
+          if isinstance(self.struct_filename, list):
             struct_filename = self.struct_filename[0]
-        else:
+          else:
             struct_filename = self.struct_filename
+        else:
+          struct_filename=config.get('TICA','topology')         
 
         path, ext = os.path.splitext(struct_filename)
         np.savetxt(path + '.eg', np.fliplr(self.eigs[np.newaxis]), fmt='%9.6f')
@@ -355,7 +373,8 @@ class LSDMap(object):
 
         if args.dminput is None:
             # compute the distance matrix
-            DistanceMatrix = mt.DistanceMatrix(coords_thread, self.coords, metric=self.metric, metric_prms=self.metric_prms)
+            print "metric", self.metric
+            DistanceMatrix = mt.DistanceMatrix(coords_thread, self.coords, config=config, metric=self.metric, metric_prms=self.metric_prms)
             distance_matrix_thread = DistanceMatrix.distance_matrix
             neighbor_matrix_thread, idx_neighbor_matrix_thread = DistanceMatrix.get_neighbor_matrix()
             logging.info("distance matrix computed")
@@ -388,10 +407,11 @@ class LSDMap(object):
             logging.info("kneighbor local scales computed")
 
         epsilon_thread = np.array([self.epsilon[idx] for idx in self.idxs_thread])
-
+        #print "npoints",npoints_thread, "matrix", distance_matrix_thread, "weights",weights_thread,"epsilon", epsilon_thread
+        #np.savetxt('tica_matrix.txt', np.fliplr(distance_matrix_thread), fmt='%.9e')
         # compute kernel
         kernel = self.compute_kernel(comm, npoints_thread, distance_matrix_thread, weights_thread, epsilon_thread)
-
+        print "kernel",kernel
         # diagonalize kernel
         params= p_arpack._ParallelSymmetricArpackParams(comm, kernel, self.neigs)
         while not params.converged:

@@ -125,19 +125,21 @@ class DistanceMatrix(object):
     >>> idx_neighbor_matrix = DistanceMatrix.idx_neighbor_matrix(k=10) # (dimensions: n1 * k)
     """
 
-    def __init__(self, coords1, coords2, metric='rmsd', metric_prms={}):
-       
-       self.coords1 = np.array(coords1)
-       self.coords2 = np.array(coords2)
+    def __init__(self, coords1, coords2, config, metric='rmsd', metric_prms={}):
+       self.config=config 
+       self.metric2=metric 
+       if self.metric2!='tica':
+         self.coords1 = np.array(coords1)
+         self.coords2 = np.array(coords2)
+         
+         shape_coords1 = self.coords1.shape
+         shape_coords2 = self.coords2.shape
 
-       shape_coords1 = self.coords1.shape
-       shape_coords2 = self.coords2.shape
-
-       if len(shape_coords1) != len(shape_coords2):
+         if len(shape_coords1) != len(shape_coords2):
            raise TypeError('coords1 and coords2 should have the same number of dimensions!')
 
 
-       if len(shape_coords1) == 3:
+         if len(shape_coords1) == 3:
            if shape_coords1[1] == shape_coords2[1]:
                self.ndim = shape_coords1[1]
                self.natoms = shape_coords1[2]
@@ -148,16 +150,17 @@ class DistanceMatrix(object):
                #    self.coords2 = np.squeeze(self.coords2, axis=(1,))
            else:
                raise TypeError('coords1 and coords2 have not the same number of spatial dimensions')
-       elif len(shape_coords1) == 2:
+         elif len(shape_coords1) == 2:
            self.ndim = 1
            self.natoms = shape_coords1[1]
-       else:
+         else:
            raise TypeError('coords1 and coords2 should have a number of dimensions 1 < ndim < 4;                                                                                                      if only one coordinate is used, consider using coords1[np.newaxis] or coords2[np.newaxis]')
            
-       self.metric = Metric(metric, ndim=self.ndim, **metric_prms).function
-       self.ncoords1 = self.coords1.shape[0]
-       self.ncoords2 = self.coords2.shape[0]
-       self.maxsize = MAXSIZE
+       
+         self.metric = Metric(metric, ndim=self.ndim, **metric_prms).function
+         self.ncoords1 = self.coords1.shape[0]
+         self.ncoords2 = self.coords2.shape[0]
+         self.maxsize = MAXSIZE
 
     def __getattr__(self, name):
         if name == "distance_matrix":
@@ -168,20 +171,57 @@ class DistanceMatrix(object):
         return DistanceMatrix.__getattribute__(self, name)
 
     def get_distance_matrix(self):
-        if (self.ncoords1*self.ncoords2) > self.maxsize:
+        if self.metric2=='tica':
+          lag = self.config.getint('TICA','lag') #lag=500
+          tica_dim=self.config.getint('TICA','tica_dim')#tica_dim=5
+          dim=self.config.getint('TICA','dim') #dim=20
+          weighting_tica=self.config.get('TICA','weighting_tica') #weighting_tica = 'const'# or 'eigenvalues'
+          trajectoryfile=self.config.get('TICA','trajectoryfile') #trajectoryfile = 'gromacs/traj.trr'
+          topology= self.config.get('TICA','topology') #topology = 'gromacs/helix.gro'
+          stride= self.config.getint('TICA','stride') #stride=1
+
+          features = pyemma.coordinates.featurizer(topology)
+          features.add_distances_ca()
+          X1=pyemma.coordinates.load(trajectoryfile, features=None, top=topology, stride=1, chunk_size=1)
+          tica_obj = pyemma.coordinates.tica(X1, lag=lag, dim=dim)
+          #print "TICA eigenvectors:", tica_obj.eigenvectors
+          #print "TICA eigenvalues:", tica_obj.eigenvalues
+          np.savetxt('tica_eigenvectors.dat', np.fliplr(tica_obj.eigenvectors), fmt='%.18e')
+          np.savetxt('tica_eigenvalues.dat', tica_obj.eigenvalues, fmt='%.18e')
+          Y1=tica_obj.get_output(stride=stride)[0]
+          #if weighting by eigenvalues
+          if weighting_tica == 'eigenvalues':
+            ev=tica_obj.eigenvalues[:tica_dim] 
+          else:
+            ev=np.full(tica_dim,1.)
+          Yscaled1 = np.zeros((np.shape(Y1)[0],tica_dim)) 
+          for k in range(tica_dim): 
+            Yscaled1[:,k] = Y1[:,k]*ev[k]
+          nframes_tot = np.shape(Yscaled1)[0]
+          matrix = np.zeros((nframes_tot,nframes_tot)) 
+          for i in range(nframes_tot):
+            matrix[i,:] = np.linalg.norm(Yscaled1[i,:]-Yscaled1[:,:],axis=(1))
+          print matrix
+          matrix[np.isnan(matrix)] = 0.0
+          matrix=np.multiply(matrix,0.02) # normalize
+          self._distance_matrix = matrix
+          np.savetxt('tica_distance_matrix.dat', np.fliplr(matrix), fmt='%.18e')
+          return matrix
+        else:
+          if (self.ncoords1*self.ncoords2) > self.maxsize:
             raise ValueError("Large distance matrix expected! use more threads to avoid too much memory")
 
-        matrix = np.zeros((self.ncoords1, self.ncoords2))
-        for idx, coord1 in enumerate(self.coords1):
+          matrix = np.zeros((self.ncoords1, self.ncoords2))
+          for idx, coord1 in enumerate(self.coords1):
             for jdx, coord2 in enumerate(self.coords2):
                 matrix[idx, jdx] = self.metric(coord1, coord2)
 
-        #matrix = np.array([[self.metric(coord1, coord2) for coord2 in self.coords2]
-        #    for coord1 in self.coords1])
+          #matrix = np.array([[self.metric(coord1, coord2) for coord2 in self.coords2]
+          #    for coord1 in self.coords1])
 
-        matrix[np.isnan(matrix)] = 0.0
-        self._distance_matrix = matrix
-        return matrix
+          matrix[np.isnan(matrix)] = 0.0
+          self._distance_matrix = matrix
+          return matrix
 
     def neighbor_matrix(self, **kargs):
         neighbor_matrix, idx_neighbor_matrix = self.get_neighbor_matrix(**kargs)
@@ -192,31 +232,40 @@ class DistanceMatrix(object):
         return idx_neighbor_matrix
 
     def get_neighbor_matrix(self, k=None):
-
-        if k is not None:
+        if self.metric2!='tica':
+          if k is not None:
             if k >= self.ncoords2:
                 print "Warning: k > = number of data points "
-        else:
+          else:
             k = self.ncoords2
 
-        if (self.ncoords1*k) > self.maxsize:
+          if (self.ncoords1*k) > self.maxsize:
             raise ValueError("Large distance matrix expected! use more threads to avoid too much memory")
 
-        neighbor_matrix = np.zeros((self.ncoords1, k), dtype='float')
-        idx_neighbor_matrix = np.zeros((self.ncoords1, k), dtype='int')
+          neighbor_matrix = np.zeros((self.ncoords1, k), dtype='float')
+          idx_neighbor_matrix = np.zeros((self.ncoords1, k), dtype='int')
 
-        if hasattr(self, '_distance_matrix'):
+          if hasattr(self, '_distance_matrix'):
             for idx, distance in enumerate(self._distance_matrix):
                 idx_neighbors = np.argsort(distance)[:k]
                 idx_neighbor_matrix[idx] = idx_neighbors
                 neighbor_matrix[idx] = [distance[idx_neighbor] for idx_neighbor in idx_neighbors]
-        else:
+          else:
             for idx, coord1 in enumerate(self.coords1):
                 distance = np.array([self.metric(coord1, coord2) for coord2 in self.coords2])    
                 idx_neighbors = np.argsort(distance)[:k]
                 idx_neighbor_matrix[idx] = idx_neighbors
                 neighbor_matrix[idx] = [distance[idx_neighbor] for idx_neighbor in idx_neighbors]
-
+        else:
+          if hasattr(self, '_distance_matrix'):
+            neighbor_matrix = np.zeros(self._distance_matrix.shape, dtype='float')
+            idx_neighbor_matrix = np.zeros(self._distance_matrix.shape, dtype='int')
+            for idx, distance in enumerate(self._distance_matrix):
+                idx_neighbors = np.argsort(distance)[:k]
+                idx_neighbor_matrix[idx] = idx_neighbors
+                neighbor_matrix[idx] = [distance[idx_neighbor] for idx_neighbor in idx_neighbors]
+          else:
+            print "error: no _distance_matrix"
         return neighbor_matrix, idx_neighbor_matrix
 
 
