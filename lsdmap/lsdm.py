@@ -440,7 +440,7 @@ class LSDMap(object):
         # store nearest neighbors in .nn file if specified via -n option
         if args.nnfile is not None:
             logging.info("Saving nearest neighbors")
-            self.save_nneighbors(comm, args, neighbor_matrix, idx_neighbor_matrix, epsilon_thread)
+            self.save_nneighbors(comm, args, neighbor_matrix_thread, idx_neighbor_matrix_thread, epsilon_thread)
 
         if (args.dmfile is not None) and (args.dminput is None):
             logging.info("Saving distance matrix")

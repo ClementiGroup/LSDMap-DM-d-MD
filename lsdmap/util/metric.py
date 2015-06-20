@@ -4,7 +4,6 @@ import cython
 import copy
 import pyqcprot
 import util
-import pyemma
 
 global MAXSIZE
 MAXSIZE = 5E8
@@ -172,6 +171,7 @@ class DistanceMatrix(object):
 
     def get_distance_matrix(self):
         if self.metric2=='tica':
+          import pyemma
           lag = self.config.getint('TICA','lag') #lag=500
           tica_dim=self.config.getint('TICA','tica_dim')#tica_dim=5
           dim=self.config.getint('TICA','dim') #dim=20

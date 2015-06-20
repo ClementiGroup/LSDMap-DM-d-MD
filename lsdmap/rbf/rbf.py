@@ -69,11 +69,12 @@ class RbfLib(object):
 
 class RbfFit(object):
 
-    def __init__(self, comm, coords, values, distance_matrix=None, metric='rmsd', metric_prms={},\
+    def __init__(self, comm, coords, values, config, distance_matrix=None, metric='rmsd', metric_prms={},\
                   sigma=None, ksigma=None, fit='inverse_multiquadric'):
 
         self.coords = coords
         self.values = values
+        self.config = config
  
         self.npoints = self.coords.shape[0]
         self.ndim = self.coords.shape[1]
@@ -132,7 +133,7 @@ class RbfFit(object):
             self.idxs_thread, self.npoints_per_thread, self.offsets_per_thread = p_index.get_idxs_thread(comm, self.npoints)
             npoints_thread = self.npoints_per_thread[rank]
             coords_thread = np.array([self.coords[idx] for idx in self.idxs_thread])
-            DistanceMatrix = mt.DistanceMatrix(coords_thread, self.coords, metric=self.metric, metric_prms=self.metric_prms)
+            DistanceMatrix = mt.DistanceMatrix(coords_thread, self.coords, config=self.config, metric=self.metric, metric_prms=self.metric_prms)
             self.distance_matrix = np.vstack(comm.allgather(DistanceMatrix.distance_matrix))
             logging.info("distance matrix computed")
         else: 
@@ -366,12 +367,12 @@ class RbfExe(object):
         if self.fitdcs: 
             dc_order = args.dc_orders[0]
             logging.info('Start fitting procedure along DC %i'%dc_order) 
-            fit = RbfFit(comm, self.coords, self.values[:,dc_order], metric=self.metric, fit=self.function, sigma=self.sigma, ksigma=self.ksigma)        
+            fit = RbfFit(comm, self.coords, self.values[:,dc_order], config=config, metric=self.metric, fit=self.function, sigma=self.sigma, ksigma=self.ksigma)        
             logging.info('Fitting along DC %i done'%dc_order)
         else:
             dc_order = None
             logging.info('Start fitting procedure')
-            fit = RbfFit(comm, self.coords, self.values, metric=self.metric, fit=self.function, sigma=self.sigma, ksigma=self.ksigma) 
+            fit = RbfFit(comm, self.coords, self.values, config=config, metric=self.metric, fit=self.function, sigma=self.sigma, ksigma=self.ksigma) 
             logging.info('Fitting done')
 
         weights = fit.weights[np.newaxis]
@@ -387,7 +388,7 @@ class RbfExe(object):
                 distance_matrix = fit.distance_matrix
                 for dc_order in args.dc_orders[1:]:
                     logging.info('Start fitting procedure along DC %i'%dc_order)
-                    fit = RbfFit(comm, self.coords, self.values[:,dc_order], distance_matrix=distance_matrix, metric=self.metric,
+                    fit = RbfFit(comm, self.coords, self.values[:,dc_order],config=config, distance_matrix=distance_matrix, metric=self.metric,
                                  fit=self.function, sigma=self.sigma, ksigma=self.ksigma)
                     logging.info('Fitting along DC %i done'%dc_order)
                     weights = np.concatenate((weights, fit.weights[np.newaxis]))
