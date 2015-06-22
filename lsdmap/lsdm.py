@@ -79,7 +79,7 @@ class LSDMap(object):
         config = self.config
         args = self.args
 
-        known_status = ['constant', 'kneighbor', 'user', 'kneighbor_mean']
+        known_status = ['constant', 'kneighbor', 'user', 'kneighbor_mean', 'kneighbor_invert']
         _mapped = {'const': 'constant', 'cst': 'constant', 'mean-kneighbor': 'mean_kneighbor'}
 
         if args.epsfile is None:
@@ -88,7 +88,7 @@ class LSDMap(object):
                 status = _mapped[status]
             if not status in known_status:
                 raise ValueError("local scale status should be one of "+ ', '.join(known_status))
-            if status in ['kneighbor', 'kneighbor_mean']:
+            if status in ['kneighbor', 'kneighbor_mean', 'kneighbor_invert']:
                 value = None
                 self.k = config.getint('LOCALSCALE', 'k')
             if status == 'constant':
@@ -248,7 +248,7 @@ class LSDMap(object):
         np.savetxt(path + '.ev', np.fliplr(self.evs), fmt='%.18e')
         #np.save(path + '_eg.npy', np.fliplr(self.eigs[np.newaxis]))
         #np.save(path + '_ev.npy', np.fliplr(self.evs))
-
+        np.savetxt(path + '.eps', self.epsilon, fmt='%.18e')
         if args.output_file is None:
             try:
                 lsdmap_filename = config.get('LSDMAP', 'lsdmfile')
@@ -387,7 +387,7 @@ class LSDMap(object):
             logging.info("distance matrix loaded")
 
         # compute kth neighbor local scales if needed
-        if self.status_epsilon in ['kneighbor', 'kneighbor_mean']:
+        if self.status_epsilon in ['kneighbor','kneighbor_invert', 'kneighbor_mean']:
             #epsilon_thread = []
             epsilon_threadv = np.zeros(npoints_thread,dtype='float')
             for idx, line in enumerate(idx_neighbor_matrix_thread):
@@ -401,6 +401,9 @@ class LSDMap(object):
 
             self.epsilon = np.zeros(self.npoints, dtype='float')
             comm.Allgatherv(epsilon_threadv, (self.epsilon, self.npoints_per_thread, self.offsets_per_thread, MPI.DOUBLE))
+            
+            if self.status_epsilon == 'kneighbor_invert':
+                self.epsilon = 1/self.epsilon  # take the inverse of every epsilon
 
             if self.status_epsilon == 'kneighbor_mean':
                 mean_value_epsilon = np.mean(self.epsilon) # compute the mean value of the local scales

@@ -108,6 +108,9 @@ for i in `seq 1 $niters` ; do
 
   if [ $((($iter + $i) % $nsave)) == 0 ]; then
     cp tmpha.gro results/iter$((iter + $i)).gro
+    cp tmpha.eps results/iter$((iter + $i)).eps
+    cp tmpha.ev results/iter$((iter + $i)).ev
+    cp tmpha.eg results/iter$((iter + $i)).eg
     if [ $(($iter + $i)) > 0 ]; then cp backup.w results/iter$((iter + $i)).w; fi
   fi
 
