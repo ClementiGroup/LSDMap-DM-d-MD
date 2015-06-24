@@ -8,9 +8,15 @@ import argparse
 from mpi4py import MPI
 
 class ParallelMDruns(object):
-
-    def write_script(self, script, directory, rank, mdpfile, grofile, topfile, output_grofile, tprfile='topol.tpr', trrfile='traj.trr', edrfile='ener.edr', shebang='/bin/bash', ndxfile='', grompp_options='', mdrun_options=''):
-
+    ##TICA
+    def write_script(self, script, directory, rank, mdpfile, grofile, topfile, output_grofile, start_coord, num_coord, tprfile='topol.tpr', trrfile='traj.trr', edrfile='ener.edr', shebang='/bin/bash', ndxfile='', grompp_options='', mdrun_options=''):
+        ##TICA
+        frame_designation_path = directory + '/' + 'frame_desig.txt'
+        with open(frame_designation_path, 'w') as fiile:
+            for i in xrange(num_coord):
+                this_coord = start_coord + i
+                fiile.write("%d\n" % this_coord)
+        ##TICAA
         file_path = directory + '/' + script
     
         if not ndxfile:
@@ -43,10 +49,17 @@ for idx in `seq 1 $nframes`; do
 
   # gromacs preprocessing & MD
   grompp %(grompp_options)s -f %(mdpfile)s -c $tmpstartgro -p %(topfile)s %(ndxfile_option)s -o %(tprfile)s 1>/dev/null 2>/dev/null
-  mdrun -nt 1 %(mdrun_options)s -s %(tprfile)s -o %(trrfile)s -e %(edrfile)s 1>/dev/null 2>/dev/null
+  mdrun %(mdrun_options)s -s %(tprfile)s -o %(trrfile)s -e %(edrfile)s 1>/dev/null 2>/dev/null
 
   # store data
   cat confout.gro >> $outgro
+  
+  ##TICA store trajectories
+  if [ -e traj.xtc ]; then
+    save_name=`sed "$idx"'q;d' frame_desig.txt`
+    mv traj.xtc ../../latest_frames/traj"$save_name".xtc
+  fi
+  ##TICA
 
 done
 
@@ -173,7 +186,22 @@ rm -f $tmpstartgro
         shutil.rmtree(rundir, ignore_errors=True)
         os.makedirs(rundir)
         comm.Barrier()
-
+        
+        ##TICA
+        if rank == 0:
+            tica_dir = curdir + '/' + 'latest_frames'
+            tica_backup = curdir + '/' + 'back_up_latest_frames'
+            shutil.rmtree(tica_backup, ignore_errors=True)
+            try:
+                shutil.copytree(tica_dir, tica_backup)
+            except:
+                print "Making latest_frames directory for first time"
+            shutil.rmtree(tica_dir, ignore_errors=True)
+            os.makedirs(tica_dir)
+            shutil.copy("weight.w", tica_dir) #store the current input files
+            shutil.copy("input.gro", tica_dir)
+        ##TICAA
+        
         if rank==0:
             print "Preparing .gro files..." 
             rundirs=[rundir]
@@ -198,9 +226,17 @@ rm -f $tmpstartgro
 
             for idx in xrange(nextra_coords):
                 ncoords_per_thread[idx] += 1
-
+            ##TICA
+            thread_start_coord = [0]
+            current_coord = 0
+            ##TICAA
+            
             with open(args.grofile, 'r') as grofile:
                 for idx in xrange(size):
+                    ##TICA
+                    current_coord += ncoords_per_thread[idx]
+                    thread_start_coord.append(current_coord)
+                    ##TICAA
                     grofile_thread = rundirs[idx] + '/' + 'start.gro'
                     with open(grofile_thread, 'w') as grofile_t:
                         nlines_per_thread = ncoords_per_thread[idx]*(natoms+3)
@@ -214,10 +250,22 @@ rm -f $tmpstartgro
 
             if args.sfiles is not None:
                 self.split_additional_files(args.sfiles, rundirs, ncoords_per_thread, size)
+                
+            ##TICA
+            thread_start_coord = thread_start_coord[:-1]
+            thread_num_coord = ncoords_per_thread[:]
+            ##TICAA
 
         else:
             comm.send(rundir, dest=0, tag=rank)
-
+            thread_num_coord = None
+            thread_start_coord = None
+            
+        comm.Barrier()
+        ##TICA
+        thread_num_coord = comm.scatter(thread_num_coord, root=0)
+        thread_start_coord = comm.scatter(thread_start_coord, root=0)
+        ##TICAA
 
         if rank==0:
             print "copying .mdp and .top files..."
@@ -247,8 +295,8 @@ rm -f $tmpstartgro
             print "Time used for preprocessing (parallelization): %.2fs" %(tcpu1 - tcpu0)
        
         script = 'run.sh'
-        self.write_script(script, rundir, rank, 'grompp.mdp', 'start.gro', 'topol.top', 'out.gro',\
-                     ndxfile=args.ndxfile, grompp_options=args.grompp_options, mdrun_options=args.mdrun_options)
+        self.write_script(script, rundir, rank, 'grompp.mdp', 'start.gro', 'topol.top', 'out.gro', thread_start_coord, thread_num_coord,\
+                     ndxfile=args.ndxfile, grompp_options=args.grompp_options, mdrun_options=args.mdrun_options) ##TICA
        
         comm.Barrier()
        

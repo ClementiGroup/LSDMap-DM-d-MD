@@ -108,7 +108,7 @@ for i in `seq 1 $niters` ; do
 
   if [ $((($iter + $i) % $nsave)) == 0 ]; then
     cp tmpha.gro results/iter$((iter + $i)).gro
-    if [ $(($iter + $i)) > 0 ]; then cp backup.w results/iter$((iter + $i)).w; fi
+    if [ $(($iter + $i)) -gt 0 ]; then cp backup.w results/iter$((iter + $i)).w; fi
   fi
 
   sed -i 's/iter=.*/iter='"$(($iter + $i))"'/g' $prmfile
