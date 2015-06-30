@@ -198,8 +198,11 @@ rm -f $tmpstartgro
                 print "Making latest_frames directory for first time"
             shutil.rmtree(tica_dir, ignore_errors=True)
             os.makedirs(tica_dir)
-            shutil.copy("weight.w", tica_dir) #store the current input files
-            shutil.copy("input.gro", tica_dir)
+            try:
+                shutil.copy("weight.w", tica_dir) #store the current input files
+                shutil.copy("input.gro", tica_dir)
+            except:
+                print "Could not locate input files"
         ##TICAA
         
         if rank==0:
