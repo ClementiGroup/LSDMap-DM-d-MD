@@ -79,7 +79,7 @@ class LSDMap(object):
         config = self.config
         args = self.args
 
-        known_status = ['constant', 'kneighbor', 'user', 'kneighbor_mean', 'kneighbor_invert']
+        known_status = ['constant', 'kneighbor', 'user', 'kneighbor_mean', 'kneighbor_invert', 'asymmetric']
         _mapped = {'const': 'constant', 'cst': 'constant', 'mean-kneighbor': 'mean_kneighbor'}
 
         if args.epsfile is None:
@@ -88,7 +88,7 @@ class LSDMap(object):
                 status = _mapped[status]
             if not status in known_status:
                 raise ValueError("local scale status should be one of "+ ', '.join(known_status))
-            if status in ['kneighbor', 'kneighbor_mean', 'kneighbor_invert']:
+            if status in ['kneighbor', 'kneighbor_mean', 'kneighbor_invert','asymmetric']:
                 value = None
                 self.k = config.getint('LOCALSCALE', 'k')
             if status == 'constant':
@@ -199,7 +199,7 @@ class LSDMap(object):
         return parser
 
 
-    def compute_kernel(self, comm, npoints_thread, distance_matrix_thread, weights_thread, epsilon_thread):
+    def compute_kernel(self, comm, status_epsilon, npoints_thread, distance_matrix_thread, weights_thread, epsilon_thread):
         # for a detailed description of the following operations, see the paper:
             # Determination of reaction coordinates via locally scaled diffusion map
             # Mary A. Rohrdanz, Wenwei Zheng, Mauro Maggioni, and Cecilia Clementi
@@ -209,24 +209,35 @@ class LSDMap(object):
         d_vector_thread = np.zeros(npoints_thread, dtype='float')
 
         # compute LSDMap kernel, Eq. (5) of the above paper
-        kernel = np.sqrt((weights_thread[:, np.newaxis]).dot(self.weights[np.newaxis])) * \
+        if self.status_epsilon == 'asymmetric':
+          mean_value_epsilon = np.mean(epsilon_thread)
+          shape1=distance_matrix_thread.shape[0]
+          shape2=distance_matrix_thread.shape[1]
+          print shape1,shape2
+          kernel=np.empty((shape1,shape2))
+          for i1 in range(shape1):
+            for i2 in range(shape2):
+              kernel[i1][i2] = weights_thread[i1] * np.exp(-distance_matrix_thread[i1][i2]*min(1,1-epsilon_thread[i2]/epsilon_thread[i1])/(epsilon_thread[i1]))           
+        else:
+            kernel = np.sqrt((weights_thread[:, np.newaxis]).dot(self.weights[np.newaxis])) * \
                  np.exp(-distance_matrix_thread**2/(2*epsilon_thread[:, np.newaxis].dot(self.epsilon[np.newaxis])))
-        print "part1", np.sqrt((weights_thread[:, np.newaxis]).dot(self.weights[np.newaxis]))
-        print "part2", np.exp(-distance_matrix_thread**2/(2*epsilon_thread[:, np.newaxis].dot(self.epsilon[np.newaxis])))
-        print "part3", np.exp(-distance_matrix_thread**2)
-        print "part4", -distance_matrix_thread
-        print "part5", epsilon_thread[:, np.newaxis]
-        print "part5", self.epsilon[np.newaxis] 
-        print "kernel1", kernel
+        
+        #print "part1", np.sqrt((weights_thread[:, np.newaxis]).dot(self.weights[np.newaxis]))
+        #print "part2", np.exp(-distance_matrix_thread**2/(2*epsilon_thread[:, np.newaxis].dot(self.epsilon[np.newaxis])))
+        #print "part3", np.exp(-distance_matrix_thread**2)
+        #print "part4", -distance_matrix_thread
+        #print "part5", epsilon_thread[:, np.newaxis]
+        #print "part5", self.epsilon[np.newaxis] 
+        #print "kernel1", kernel
         p_vector_thread = np.sum(kernel, axis=1)
         p_vector = np.hstack(comm.allgather(p_vector_thread)) # Eq. (6)
         self.p_vector = p_vector
-        print "p_vector",p_vector
+        #print "p_vector",p_vector
         kernel /= np.sqrt(p_vector_thread[:,np.newaxis].dot(p_vector[np.newaxis])) # Eq. (7)
         d_vector_thread = np.sum(kernel, axis=1)
         d_vector = np.hstack(comm.allgather(d_vector_thread)) # Compute D given between Eqs. (7) and (8)
         self.d_vector = d_vector
-        print "d_vector",d_vector
+        #print "d_vector",d_vector
         kernel /= np.sqrt(d_vector_thread[:,np.newaxis].dot(d_vector[np.newaxis])) # Eq (8) (slightly modified)
         return kernel
 
@@ -387,7 +398,7 @@ class LSDMap(object):
             logging.info("distance matrix loaded")
 
         # compute kth neighbor local scales if needed
-        if self.status_epsilon in ['kneighbor','kneighbor_invert', 'kneighbor_mean']:
+        if self.status_epsilon in ['kneighbor','kneighbor_invert', 'kneighbor_mean','asymmetric']:
             #epsilon_thread = []
             epsilon_threadv = np.zeros(npoints_thread,dtype='float')
             for idx, line in enumerate(idx_neighbor_matrix_thread):
@@ -408,14 +419,13 @@ class LSDMap(object):
             if self.status_epsilon == 'kneighbor_mean':
                 mean_value_epsilon = np.mean(self.epsilon) # compute the mean value of the local scales
                 self.epsilon = mean_value_epsilon * np.ones(self.npoints)  # and set it as the new constant local scale
-
             logging.info("kneighbor local scales computed")
 
         epsilon_thread = np.array([self.epsilon[idx] for idx in self.idxs_thread])
         #print "npoints",npoints_thread, "matrix", distance_matrix_thread, "weights",weights_thread,"epsilon", epsilon_thread
         #np.savetxt('tica_matrix.txt', np.fliplr(distance_matrix_thread), fmt='%.9e')
         # compute kernel
-        kernel = self.compute_kernel(comm, npoints_thread, distance_matrix_thread, weights_thread, epsilon_thread)
+        kernel = self.compute_kernel(comm, self.status_epsilon, npoints_thread, distance_matrix_thread, weights_thread, epsilon_thread)
         print "kernel",kernel
         # diagonalize kernel
         params= p_arpack._ParallelSymmetricArpackParams(comm, kernel, self.neigs)
