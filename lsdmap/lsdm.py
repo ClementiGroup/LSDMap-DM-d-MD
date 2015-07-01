@@ -217,7 +217,17 @@ class LSDMap(object):
           kernel=np.empty((shape1,shape2))
           for i1 in range(shape1):
             for i2 in range(shape2):
-              kernel[i1][i2] = weights_thread[i1] * np.exp(-distance_matrix_thread[i1][i2]*min(1,1-epsilon_thread[i2]/epsilon_thread[i1])/(epsilon_thread[i1]))           
+              kernel[i1][i2] = weights_thread[i1]/self.weights[i2] * np.exp(-distance_matrix_thread[i1][i2]*min(1,1-self.epsilon[i2]/epsilon_thread[i1])/(epsilon_thread[i1]))           
+          p_vector_thread = np.sum(kernel, axis=0)
+          p_vector = np.hstack(comm.allgather(p_vector_thread)) # Eq. (6)
+          self.p_vector = p_vector
+          #each row sum is 1
+          d_vector_thread = np.sum(kernel, axis=1)
+          d_vector = np.hstack(comm.allgather(d_vector_thread)) # Compute D given between Eqs. (7) and (8)
+          self.d_vector = d_vector
+          for i1 in range(shape1):
+            for i2 in range(shape2):
+              kernel[i1][i2] /= d_vector_thread[i1] # Eq. (7)
         else:
             kernel = np.sqrt((weights_thread[:, np.newaxis]).dot(self.weights[np.newaxis])) * \
                  np.exp(-distance_matrix_thread**2/(2*epsilon_thread[:, np.newaxis].dot(self.epsilon[np.newaxis])))
@@ -229,16 +239,16 @@ class LSDMap(object):
         #print "part5", epsilon_thread[:, np.newaxis]
         #print "part5", self.epsilon[np.newaxis] 
         #print "kernel1", kernel
-        p_vector_thread = np.sum(kernel, axis=1)
-        p_vector = np.hstack(comm.allgather(p_vector_thread)) # Eq. (6)
-        self.p_vector = p_vector
+            p_vector_thread = np.sum(kernel, axis=1)
+            p_vector = np.hstack(comm.allgather(p_vector_thread)) # Eq. (6)
+            self.p_vector = p_vector
         #print "p_vector",p_vector
-        kernel /= np.sqrt(p_vector_thread[:,np.newaxis].dot(p_vector[np.newaxis])) # Eq. (7)
-        d_vector_thread = np.sum(kernel, axis=1)
-        d_vector = np.hstack(comm.allgather(d_vector_thread)) # Compute D given between Eqs. (7) and (8)
-        self.d_vector = d_vector
+            kernel /= np.sqrt(p_vector_thread[:,np.newaxis].dot(p_vector[np.newaxis])) # Eq. (7)
+            d_vector_thread = np.sum(kernel, axis=1)
+            d_vector = np.hstack(comm.allgather(d_vector_thread)) # Compute D given between Eqs. (7) and (8)
+            self.d_vector = d_vector
         #print "d_vector",d_vector
-        kernel /= np.sqrt(d_vector_thread[:,np.newaxis].dot(d_vector[np.newaxis])) # Eq (8) (slightly modified)
+            kernel /= np.sqrt(d_vector_thread[:,np.newaxis].dot(d_vector[np.newaxis])) # Eq (8) (slightly modified)
         return kernel
 
 
@@ -425,8 +435,10 @@ class LSDMap(object):
         #print "npoints",npoints_thread, "matrix", distance_matrix_thread, "weights",weights_thread,"epsilon", epsilon_thread
         #np.savetxt('tica_matrix.txt', np.fliplr(distance_matrix_thread), fmt='%.9e')
         # compute kernel
+        #print self.idxs_thread
+        print npoints_thread
         kernel = self.compute_kernel(comm, self.status_epsilon, npoints_thread, distance_matrix_thread, weights_thread, epsilon_thread)
-        print "kernel",kernel
+        #print "kernel",kernel
         # diagonalize kernel
         params= p_arpack._ParallelSymmetricArpackParams(comm, kernel, self.neigs)
         while not params.converged:
