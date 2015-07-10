@@ -221,7 +221,9 @@ class LSDMap(object):
 
         path, ext = os.path.splitext(struct_filename)
         np.savetxt(path + '.eg', np.fliplr(self.eigs[np.newaxis]), fmt='%9.6f')
+        logging.info("saved .eg file")
         np.savetxt(path + '.ev', np.fliplr(self.evs), fmt='%.18e')
+        logging.info("saved .ev file")
         #np.save(path + '_eg.npy', np.fliplr(self.eigs[np.newaxis]))
         #np.save(path + '_ev.npy', np.fliplr(self.evs))
 
@@ -232,9 +234,10 @@ class LSDMap(object):
                 return
         else:
             lsdmap_filename = args.output_file
+        logging.info("checked args.output_file")
         with open(lsdmap_filename, "w") as file:
             pickle.dump(self, file)
-
+        logging.info("pickle dumped")
 
     def save_nneighbors(self, comm, args, neighbor_matrix, idx_neighbor_matrix, epsilon_thread):
 
@@ -414,7 +417,7 @@ class LSDMap(object):
         # store nearest neighbors in .nn file if specified via -n option
         if args.nnfile is not None:
             logging.info("Saving nearest neighbors")
-            self.save_nneighbors(comm, args, neighbor_matrix, idx_neighbor_matrix, epsilon_thread)
+            self.save_nneighbors(comm, args, neighbor_matrix_thread, idx_neighbor_matrix_thread, epsilon_thread)
 
         if (args.dmfile is not None) and (args.dminput is None):
             logging.info("Saving distance matrix")
