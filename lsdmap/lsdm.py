@@ -32,7 +32,7 @@ class LSDMap(object):
           print filename
         metric=config.get('LSDMAP','metric')        
         print metric
-	if metric=='tica':
+	if metric=='tica' or metric=='tica2' or metric=='tica_asymmetric':
 	  trajectoryfile = config.get('TICA','trajectoryfile') #traj.trr'
           topology = config.get('TICA','topology') #'helix.gro'
           import mdtraj as md
@@ -79,7 +79,7 @@ class LSDMap(object):
         config = self.config
         args = self.args
 
-        known_status = ['constant', 'kneighbor', 'user', 'kneighbor_mean', 'kneighbor_invert', 'asymmetric']
+        known_status = ['constant', 'kneighbor', 'user', 'kneighbor_mean', 'kneighbor_invert', 'asymmetric','asymmetric2', 'tica', 'tica2', 'tica_asymmetric']
         _mapped = {'const': 'constant', 'cst': 'constant', 'mean-kneighbor': 'mean_kneighbor'}
 
         if args.epsfile is None:
@@ -88,7 +88,7 @@ class LSDMap(object):
                 status = _mapped[status]
             if not status in known_status:
                 raise ValueError("local scale status should be one of "+ ', '.join(known_status))
-            if status in ['kneighbor', 'kneighbor_mean', 'kneighbor_invert','asymmetric']:
+            if status in ['kneighbor', 'kneighbor_mean', 'kneighbor_invert','asymmetric', 'asymmetric2', 'tica', 'tica2', 'tica_asymmetric']:
                 value = None
                 self.k = config.getint('LOCALSCALE', 'k')
             if status == 'constant':
@@ -209,15 +209,20 @@ class LSDMap(object):
         d_vector_thread = np.zeros(npoints_thread, dtype='float')
 
         # compute LSDMap kernel, Eq. (5) of the above paper
-        if self.status_epsilon == 'asymmetric':
+        if self.status_epsilon == 'asymmetric' or self.status_epsilon == 'asymmetric2':
           mean_value_epsilon = np.mean(epsilon_thread)
           shape1=distance_matrix_thread.shape[0]
           shape2=distance_matrix_thread.shape[1]
           print shape1,shape2
           kernel=np.empty((shape1,shape2))
-          for i1 in range(shape1):
+          if self.status_epsilon == 'asymmetric':
+           for i1 in range(shape1):
             for i2 in range(shape2):
               kernel[i1][i2] = weights_thread[i1]/self.weights[i2] * np.exp(-distance_matrix_thread[i1][i2]*min(1,1-self.epsilon[i2]/epsilon_thread[i1])/(epsilon_thread[i1]))           
+          else:
+           for i1 in range(shape1):
+            for i2 in range(shape2):
+              kernel[i1][i2] = weights_thread[i1]/self.weights[i2] * np.exp(-distance_matrix_thread[i1][i2]**2*min(1,1-self.epsilon[i2]/epsilon_thread[i1])/(epsilon_thread[i1]**2))
           p_vector_thread = np.sum(kernel, axis=0)
           p_vector = np.hstack(comm.allgather(p_vector_thread)) # Eq. (6)
           self.p_vector = p_vector
@@ -408,7 +413,7 @@ class LSDMap(object):
             logging.info("distance matrix loaded")
 
         # compute kth neighbor local scales if needed
-        if self.status_epsilon in ['kneighbor','kneighbor_invert', 'kneighbor_mean','asymmetric']:
+        if self.status_epsilon in ['kneighbor','kneighbor_invert', 'kneighbor_mean','asymmetric','asymmetric2', 'tica2', 'tica_asymmetric']:
             #epsilon_thread = []
             epsilon_threadv = np.zeros(npoints_thread,dtype='float')
             for idx, line in enumerate(idx_neighbor_matrix_thread):

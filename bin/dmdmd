@@ -76,9 +76,8 @@ fi
 
 echo
 
+tstart=`date +%s`
 for i in `seq 1 $niters` ; do
-
-  tcpu1=$(date +%s)
 
   echo -e "Iteration $(($iter + $i)): \n"
 
@@ -86,7 +85,7 @@ for i in `seq 1 $niters` ; do
   echo "(1) Compute MD"
   eval mpiexec -n $nthreads p_mdrun -f $mdpfile -p $topfile -c $ingro -o tmp.gro $p_mdrun_options
   echo
-
+  
   # 2) LSDMap step
   echo "(2) Compute diffusion coordinates"
   echo 2 | trjconv -f tmp.gro -s tmp.gro -o tmpha.gro &>/dev/null
@@ -115,5 +114,7 @@ for i in `seq 1 $niters` ; do
   fi
 
   sed -i 's/iter=.*/iter='"$(($iter + $i))"'/g' $prmfile
-
+  
+  t2=`date +%s`
+  echo $((iter+i)) $(((t2-tstart)*$nthreads)) >> dmdmd.log
 done
