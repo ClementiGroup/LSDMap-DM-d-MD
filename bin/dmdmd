@@ -84,13 +84,13 @@ for i in `seq 1 $niters` ; do
 
   # 1) MD step
   echo "(1) Compute MD"
-  eval mpirun -n $nthreads p_mdrun -f $mdpfile -p $topfile -c $ingro -o tmp.gro $p_mdrun_options
+  eval srun -n $nthreads p_mdrun -f $mdpfile -p $topfile -c $ingro -o tmp.gro $p_mdrun_options
   echo
 
   # 2) LSDMap step
   echo "(2) Compute diffusion coordinates"
   echo 2 | trjconv -f tmp.gro -s tmp.gro -o tmpha.gro &>/dev/null
-  mpirun -n $nthreads lsdmap -f $inifile -c tmpha.gro -w $wfile -n tmp.nn
+  srun -n $nthreads lsdmap -f $inifile -c tmpha.gro -w $wfile -n tmp.nn
   echo
 
   # 3) selection step
