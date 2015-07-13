@@ -367,7 +367,7 @@ class DMapSamplingExe(object):
             else:
                 self.restart_from_iter(iter, args)
         config = DMapSamplingConfig(iter, args)
-
+        t_start=time.time()
         # main loop
         for idx in xrange(args.niters):
             logging.info("START ITERATION %i"%config.iter)
@@ -385,4 +385,6 @@ class DMapSamplingExe(object):
             dmapsworker.select_new_points(config)
             # update for next iteration
             config.iter = self.update(config.iter, args, config)
+            t_current=time.time()
+            subprocess.call("echo "+str(config.iter)+" " +str((t_current-t_start)*args.ncpus/3600) +" >> dmaps_cputime.log", shell=True) 
             print '--------------------------------------------------'
