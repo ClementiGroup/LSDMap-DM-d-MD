@@ -79,7 +79,7 @@ class LSDMap(object):
         config = self.config
         args = self.args
 
-        known_status = ['constant', 'kneighbor', 'user', 'kneighbor_mean', 'kneighbor_invert', 'asymmetric','asymmetric2', 'tica', 'tica2', 'tica_asymmetric']
+        known_status = ['constant', 'kneighbor', 'user', 'kneighbor_mean', 'kneighbor_invert', 'asymmetric','asymmetric2', 'tica', 'tica2', 'tica_asymmetric', 'pca']
         _mapped = {'const': 'constant', 'cst': 'constant', 'mean-kneighbor': 'mean_kneighbor'}
 
         if args.epsfile is None:
@@ -88,7 +88,7 @@ class LSDMap(object):
                 status = _mapped[status]
             if not status in known_status:
                 raise ValueError("local scale status should be one of "+ ', '.join(known_status))
-            if status in ['kneighbor', 'kneighbor_mean', 'kneighbor_invert','asymmetric', 'asymmetric2', 'tica', 'tica2', 'tica_asymmetric']:
+            if status in ['kneighbor', 'kneighbor_mean', 'kneighbor_invert','asymmetric', 'asymmetric2', 'tica', 'tica2', 'tica_asymmetric','pca']:
                 value = None
                 self.k = config.getint('LOCALSCALE', 'k')
             if status == 'constant':
@@ -236,14 +236,14 @@ class LSDMap(object):
         else:
             kernel = np.sqrt((weights_thread[:, np.newaxis]).dot(self.weights[np.newaxis])) * \
                  np.exp(-distance_matrix_thread**2/(2*epsilon_thread[:, np.newaxis].dot(self.epsilon[np.newaxis])))
-        
-        #print "part1", np.sqrt((weights_thread[:, np.newaxis]).dot(self.weights[np.newaxis]))
-        #print "part2", np.exp(-distance_matrix_thread**2/(2*epsilon_thread[:, np.newaxis].dot(self.epsilon[np.newaxis])))
-        #print "part3", np.exp(-distance_matrix_thread**2)
-        #print "part4", -distance_matrix_thread
-        #print "part5", epsilon_thread[:, np.newaxis]
-        #print "part5", self.epsilon[np.newaxis] 
-        #print "kernel1", kernel
+            if comm.Get_rank()==0:
+              #print "part1", np.sqrt((weights_thread[:, np.newaxis]).dot(self.weights[np.newaxis]))
+              print "part2", np.exp(-distance_matrix_thread**2/(2*epsilon_thread[:, np.newaxis].dot(self.epsilon[np.newaxis])))
+              #print "part3", np.exp(-distance_matrix_thread**2)
+              print "part4", distance_matrix_thread
+              print "part5", epsilon_thread[:, np.newaxis]
+              #print "part6", self.epsilon[np.newaxis] 
+              #print "kernel1", kernel
             p_vector_thread = np.sum(kernel, axis=1)
             p_vector = np.hstack(comm.allgather(p_vector_thread)) # Eq. (6)
             self.p_vector = p_vector
@@ -401,8 +401,8 @@ class LSDMap(object):
 
         if args.dminput is None:
             # compute the distance matrix
-            print "metric", self.metric
-            DistanceMatrix = mt.DistanceMatrix(coords_thread, self.coords, config=config, metric=self.metric, metric_prms=self.metric_prms)
+            print "metric", self.metric, self.struct_filename
+            DistanceMatrix = mt.DistanceMatrix(self.struct_filename, rank, coords_thread, self.coords, config=config, metric=self.metric, metric_prms=self.metric_prms)
             distance_matrix_thread = DistanceMatrix.distance_matrix
             neighbor_matrix_thread, idx_neighbor_matrix_thread = DistanceMatrix.get_neighbor_matrix()
             logging.info("distance matrix computed")

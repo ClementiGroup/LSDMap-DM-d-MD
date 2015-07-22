@@ -88,7 +88,7 @@ for i in `seq 1 $niters` ; do
   
   # 2) LSDMap step
   echo "(2) Compute diffusion coordinates"
-  echo 2 | trjconv -f tmp.gro -s tmp.gro -o tmpha.gro &>/dev/null
+  echo 0 | trjconv -f tmp.gro -s tmp.gro -o tmpha.gro &>/dev/null
   mpiexec -n $nthreads lsdmap -f $inifile -c tmpha.gro -w $wfile -n tmp.nn
   echo
 
@@ -99,7 +99,8 @@ for i in `seq 1 $niters` ; do
 
   # 4) reweighting step
   echo "(4) Update Boltzmann weights"
-  if [ $(($iter + $i)) -gt 1 ]; then cp $wfile backup.w; fi
+  #if [ $(($iter + $i)) -gt 1 ]; then cp $wfile backup.w; fi
+  #cp $wfile backup.w
   eval reweighting -c tmp.gro -n tmp.nn -s ncopies.nc -w $wfile -o out.gro $reweighting_options
   echo
 
@@ -110,7 +111,7 @@ for i in `seq 1 $niters` ; do
     cp tmpha.eps results/iter$((iter + $i)).eps
     cp tmpha.ev results/iter$((iter + $i)).ev
     cp tmpha.eg results/iter$((iter + $i)).eg
-    if [ $(($iter + $i)) > 0 ]; then cp backup.w results/iter$((iter + $i)).w; fi
+    if [ $(($iter + $i)) > 0 ]; then cp $wfile results/iter$((iter + $i +1)).w; fi
   fi
 
   sed -i 's/iter=.*/iter='"$(($iter + $i))"'/g' $prmfile

@@ -124,7 +124,9 @@ class DistanceMatrix(object):
     >>> idx_neighbor_matrix = DistanceMatrix.idx_neighbor_matrix(k=10) # (dimensions: n1 * k)
     """
 
-    def __init__(self, coords1, coords2, config, metric='rmsd', metric_prms={}):
+    def __init__(self,strfile, rank, coords1, coords2, config, metric='rmsd', metric_prms={}):
+       self.strfile =strfile
+       self.rank =rank
        self.config=config 
        self.metric2=metric 
        if self.metric2!='tica':
@@ -155,8 +157,8 @@ class DistanceMatrix(object):
          else:
            raise TypeError('coords1 and coords2 should have a number of dimensions 1 < ndim < 4;                                                                                                      if only one coordinate is used, consider using coords1[np.newaxis] or coords2[np.newaxis]')
            
-       
-         self.metric = Metric(metric, ndim=self.ndim, **metric_prms).function
+         if self.metric2!='pca':
+           self.metric = Metric(metric, ndim=self.ndim, **metric_prms).function
          self.ncoords1 = self.coords1.shape[0]
          self.ncoords2 = self.coords2.shape[0]
          self.maxsize = MAXSIZE
@@ -208,20 +210,63 @@ class DistanceMatrix(object):
           np.savetxt('tica_distance_matrix.dat', np.fliplr(matrix), fmt='%.18e')
           return matrix
         else:
-          if (self.ncoords1*self.ncoords2) > self.maxsize:
-            raise ValueError("Large distance matrix expected! use more threads to avoid too much memory")
+          if self.metric2=='pca':
+            from scipy.linalg import svd
+            import MDAnalysis 
+            from lsdmap.rw import writer
+            import subprocess
+            matrix = np.zeros((self.ncoords1, self.ncoords2))
+            for idx, coord1 in enumerate(self.coords1):
+              #coord1 to pca.gro
+              
+              gw = writer.open('.gro', pattern=self.strfile)
+              gw.write(coord1, 'pca'+str(self.rank)+'.gro')
+              print "idx_pca", idx, self.rank
+              subprocess.call("grompp -f grompp_pca.mdp -c pca"+str(self.rank)+".gro -p topol.top -o topol"+str(self.rank)+".tpr 1>/dev/null 2>&1",shell=True)
+              subprocess.call("mdrun -s topol"+str(self.rank)+".tpr -x traj"+str(self.rank)+".xtc>/dev/null 2>&1",shell=True) 
+              u=MDAnalysis.Universe('pca'+str(self.rank)+'.gro','traj'+str(self.rank)+'.xtc')
+              protein=u.selectAtoms("all")
+              last=protein.positions
+              last=last.reshape(-1)
+              diff=np.array(last-last)
+              for ts in u.trajectory:
+                new=protein.positions
+                new2=new.reshape(-1)
+                new3=new2-last
+                new4=new3-np.mean(new3)
+                diff=np.dstack((diff,new4))
+                last=new2
 
-          matrix = np.zeros((self.ncoords1, self.ncoords2))
-          for idx, coord1 in enumerate(self.coords1):
-            for jdx, coord2 in enumerate(self.coords2):
+              diff=diff[0,:,2:]
+              U, s, Vt = svd(diff.T, full_matrices=False)
+              V = Vt.T
+
+              for jdx, coord2 in enumerate(self.coords2):
+                other = coord2-coord1
+                other=(other.T).reshape(-1)
+                sum=0
+	        n_at=s.shape[0]
+	        for j in range(0,n_at):
+	          sum+=(np.dot(other,Vt[j,:]))/np.sqrt(s[j]*n_at) 
+                matrix[idx, jdx] = np.abs(sum)
+              subprocess.call("rm traj"+str(self.rank)+".xtc pca"+str(self.rank)+".gro",shell=True)
+            matrix[np.isnan(matrix)] = 0.0
+            self._distance_matrix = matrix
+            return matrix
+          else:
+            if (self.ncoords1*self.ncoords2) > self.maxsize:
+              raise ValueError("Large distance matrix expected! use more threads to avoid too much memory")
+            matrix = np.zeros((self.ncoords1, self.ncoords2))
+            for idx, coord1 in enumerate(self.coords1):
+              for jdx, coord2 in enumerate(self.coords2):
                 matrix[idx, jdx] = self.metric(coord1, coord2)
 
           #matrix = np.array([[self.metric(coord1, coord2) for coord2 in self.coords2]
           #    for coord1 in self.coords1])
 
-          matrix[np.isnan(matrix)] = 0.0
-          self._distance_matrix = matrix
-          return matrix
+            matrix[np.isnan(matrix)] = 0.0
+            self._distance_matrix = matrix
+            return matrix
 
     def neighbor_matrix(self, **kargs):
         neighbor_matrix, idx_neighbor_matrix = self.get_neighbor_matrix(**kargs)
@@ -244,7 +289,8 @@ class DistanceMatrix(object):
 
           neighbor_matrix = np.zeros((self.ncoords1, k), dtype='float')
           idx_neighbor_matrix = np.zeros((self.ncoords1, k), dtype='int')
-
+          
+          print "has _distance_matrix", hasattr(self, '_distance_matrix')
           if hasattr(self, '_distance_matrix'):
             for idx, distance in enumerate(self._distance_matrix):
                 idx_neighbors = np.argsort(distance)[:k]

@@ -32,7 +32,8 @@ class DMapSamplingConfig(object):
 
         self.load_parameters(config, args)
         self.initialize_md(config, args)
-
+        self.metric = config.get('LSDMAP', 'metric')
+        
     def check_md_file(self, config, option, default=None):
 
         if config.has_option('MD', option):

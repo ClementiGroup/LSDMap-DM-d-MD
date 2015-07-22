@@ -11,6 +11,7 @@ from math import sqrt, floor
 from dmaps.tools import tools
 from lsdmap.rw import reader
 from lsdmap.rw import writer
+import ConfigParser
 
 class DMapSamplingWorker(object):
 
@@ -147,6 +148,9 @@ class DMapSamplingWorker(object):
         gw.write(self.coords_lsdmap, 'lsdmap/lsdmap.gro')
         logging.info('Write weights in lsdmap/lsdmap.w')
         np.savetxt('lsdmap/lsdmap.w', self.weights_lsdmap, fmt='%.18e')
+        if config.metric=='pca':
+          subprocess.check_call("cp grompp_pca.mdp lsdmap", shell=True)
+          subprocess.check_call("cp topol.top lsdmap", shell=True)
 
     def do_postprocessing_lsdmap(self, config):
 
