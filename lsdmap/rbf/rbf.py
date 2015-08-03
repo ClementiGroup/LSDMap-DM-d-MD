@@ -69,7 +69,7 @@ class RbfLib(object):
 
 class RbfFit(object):
 
-    def __init__(self, comm, coords, values, config, distance_matrix=None, metric='rmsd', metric_prms={},\
+    def __init__(self, comm, coords, values, config, distance_matrix=None, use_nearest_neighbor='no', metric='rmsd', metric_prms={},\
                   sigma=None, ksigma=None, fit='inverse_multiquadric'):
 
         self.coords = coords
@@ -83,6 +83,7 @@ class RbfFit(object):
         self.sigma = sigma
         self.ksigma = ksigma
 
+        self.use_nearest_neighbor=use_nearest_neighbor
         if self.values.shape[0] != self.npoints:
 
             raise ValueError('Number of values provided does not match with the number of coords')
@@ -95,7 +96,8 @@ class RbfFit(object):
         self.fit_function = RbfLib(self.fit).function
 
         self.distance_matrix = distance_matrix
-        self.weights = self.get_weights(comm)
+        if self.use_nearest_neighbor!='yes': 
+         self.weights = self.get_weights(comm)
 
     def initialize_sigma_values(self, sigma, ksigma):
 
@@ -133,13 +135,13 @@ class RbfFit(object):
             self.idxs_thread, self.npoints_per_thread, self.offsets_per_thread = p_index.get_idxs_thread(comm, self.npoints)
             npoints_thread = self.npoints_per_thread[rank]
             coords_thread = np.array([self.coords[idx] for idx in self.idxs_thread])
-            DistanceMatrix = mt.DistanceMatrix(coords_thread, self.coords, config=self.config, metric=self.metric, metric_prms=self.metric_prms)
+            DistanceMatrix = mt.DistanceMatrix('None',rank,coords_thread, self.coords, config=self.config, metric=self.metric, metric_prms=self.metric_prms)
             self.distance_matrix = np.vstack(comm.allgather(DistanceMatrix.distance_matrix))
             logging.info("distance matrix computed")
         else: 
             if any(self.distance_matrix.shape[idx] != self.npoints for idx in [0, 1]):
                 logging.error("distance matrix provided doesn't match the number of coordinates")
-
+  
         self.sigma = self.initialize_sigma_values(self.sigma, self.ksigma)
 
         # invert kernel matrix
@@ -156,8 +158,23 @@ class RbfFit(object):
         return weights
 
     def __call__(self, query):
-        distance = np.array([self.metric_function(query, coord) for coord in self.coords])
-        return np.sum(self.weights*self.fit_function(distance, self.sigma))
+        if self.use_nearest_neighbor=='yes':
+         distance = np.array([self.metric_function(query, coord) for coord in self.coords])
+         min=1000
+         mini=0
+         for i in range(distance.shape[0]):
+           if min>distance[i]:
+             min=distance[i]
+             mini=i
+         #print mini
+         #print self.values.shape
+         #print self.values[mini]
+         return self.values[mini]        #print distance
+         #print self.metric_function(query, query)
+         #return self.distance_matrix
+        else:
+         distance = np.array([self.metric_function(query, coord) for coord in self.coords])
+         return np.sum(self.weights*self.fit_function(distance, self.sigma))
 
 
 #TODO: create exe class for LSDMap
@@ -210,7 +227,7 @@ class RbfExe(object):
 
         self.initialize_metric()
         self.function = config.get(self.args.section,'function')
-
+        self.use_nearest_neighbor = config.get(self.args.section,'use_nearest_neighbor')
         self.status_sigma = config.get(self.args.section,'status')
         if self.status_sigma == 'constant':
             self.sigma = config.getfloat(self.args.section,'sigma')
@@ -338,7 +355,6 @@ class RbfExe(object):
 
 
     def run(self):
-
         #initialize mpi variables
         comm = MPI.COMM_WORLD   # MPI environment
         size = comm.Get_size()  # number of threads
@@ -367,16 +383,16 @@ class RbfExe(object):
         if self.fitdcs: 
             dc_order = args.dc_orders[0]
             logging.info('Start fitting procedure along DC %i'%dc_order) 
-            fit = RbfFit(comm, self.coords, self.values[:,dc_order], config=config, metric=self.metric, fit=self.function, sigma=self.sigma, ksigma=self.ksigma)        
+            fit = RbfFit(comm, self.coords, self.values[:,dc_order], config=config, use_nearest_neighbor=self.use_nearest_neighbor, metric=self.metric, fit=self.function, sigma=self.sigma, ksigma=self.ksigma)        
             logging.info('Fitting along DC %i done'%dc_order)
         else:
             dc_order = None
             logging.info('Start fitting procedure')
-            fit = RbfFit(comm, self.coords, self.values, config=config, metric=self.metric, fit=self.function, sigma=self.sigma, ksigma=self.ksigma) 
+            fit = RbfFit(comm, self.coords, self.values, config=config, use_nearest_neighbor=self.use_nearest_neighbor, metric=self.metric, fit=self.function, sigma=self.sigma, ksigma=self.ksigma) 
             logging.info('Fitting done')
-
-        weights = fit.weights[np.newaxis]
-        sigma = fit.sigma[np.newaxis]
+        if self.use_nearest_neighbor!='yes':
+          weights = fit.weights[np.newaxis]
+          sigma = fit.sigma[np.newaxis]
 
         if args.embed_file is not None:        
             values_embed = self.embed(comm, fit, dc_order=dc_order)
@@ -388,20 +404,22 @@ class RbfExe(object):
                 distance_matrix = fit.distance_matrix
                 for dc_order in args.dc_orders[1:]:
                     logging.info('Start fitting procedure along DC %i'%dc_order)
-                    fit = RbfFit(comm, self.coords, self.values[:,dc_order],config=config, distance_matrix=distance_matrix, metric=self.metric,
+                    fit = RbfFit(comm, self.coords, self.values[:,dc_order],config=config, distance_matrix=distance_matrix,use_nearest_neighbor=self.use_nearest_neighbor, metric=self.metric,
                                  fit=self.function, sigma=self.sigma, ksigma=self.ksigma)
                     logging.info('Fitting along DC %i done'%dc_order)
-                    weights = np.concatenate((weights, fit.weights[np.newaxis]))
-                    sigma = np.concatenate((sigma, fit.sigma[np.newaxis]))
+                    if self.use_nearest_neighbor!='yes':
+                      weights = np.concatenate((weights, fit.weights[np.newaxis]))
+                      sigma = np.concatenate((sigma, fit.sigma[np.newaxis]))
                     if args.embed_file is not None:
                         values_embed = np.concatenate((values_embed, self.embed(comm, fit, dc_order)[np.newaxis]))
 
         if rank == 0:
-            wfile = "fit.w"
-            np.savetxt(wfile, weights.T, fmt='%.18e')
+            if self.use_nearest_neighbor!='yes':
+              wfile = "fit.w"
+              np.savetxt(wfile, weights.T, fmt='%.18e')
 
-            sigfile = "fit.sig"
-            np.savetxt(sigfile, sigma.T, fmt='%.18e')
+              sigfile = "fit.sig"
+              np.savetxt(sigfile, sigma.T, fmt='%.18e')
 
             if args.embed_file is not None:
                 np.savetxt("fit.embed", values_embed.T, fmt='%.18e')
