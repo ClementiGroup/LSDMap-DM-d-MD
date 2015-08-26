@@ -10,6 +10,9 @@ cdef double _h_thin_plate(double r, double sigma):
     else:
         return r**2 * log(r)
 
+cdef double _h_gaussian(double r, double sigma):
+    return exp(-(1.0/sigma*r)**2)
+
 cdef double _d_multiquadric(double r, double sigma):
     return r/(sigma**2*sqrt((r/sigma)**2 + 1))
 
@@ -18,6 +21,9 @@ cdef double _d_inverse_multiquadric(double r, double sigma):
 
 cdef double _d_thin_plate(double r, double sigma):
     return r * (1 + 2 *log(r))
+
+cdef double _d_gaussian(double r, double sigma):
+    return -2*r/(sigma**2)*exp(-(1.0/sigma*r)**2)
 
 cdef fitfunction_type setfitfunction(bytes name):
 
@@ -28,9 +34,11 @@ cdef fitfunction_type setfitfunction(bytes name):
         funct =  _h_inverse_multiquadric
     elif name  == "thin_plate":
         funct =  _h_thin_plate
+    elif name  == "gaussian":
+        funct =  _h_gaussian
     else:
         raise ValueError("function " + name + " is not supported for fitting")
-
+    
     return funct
 
 cdef fitfunction_type setfitderivative(bytes name):
@@ -42,6 +50,8 @@ cdef fitfunction_type setfitderivative(bytes name):
         deriv = _d_inverse_multiquadric
     elif name  == "thin_plate":
         deriv = _d_thin_plate
+    elif name  == "gaussian":
+        funct = _d_gaussian
     else:
         raise ValueError("function " + name + " is not supported for fitting")
 

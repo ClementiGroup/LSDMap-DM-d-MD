@@ -208,6 +208,7 @@ class DMapSamplingWorker(object):
 
         nlsdmap = dcs_lsdmap.shape[0]
         npreselect = min(nlsdmap, 1000)
+        print nfit, npreselect 
         if nfit < npreselect:
             # preselection
             idxs_preselect = tools.pick_points_from_grid(grid, npreselect)
