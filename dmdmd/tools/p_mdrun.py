@@ -9,7 +9,7 @@ from mpi4py import MPI
 
 class ParallelMDruns(object):
     ##TICA
-    def write_script(self, script, directory, rank, mdpfile, grofile, topfile, output_grofile, start_coord, num_coord, tprfile='topol.tpr', trrfile='traj.trr', edrfile='ener.edr', shebang='/bin/bash', ndxfile='', grompp_options='', mdrun_options=''):
+    def write_script(self, script, directory, rank, mdpfile, grofile, topfile, output_grofile, start_coord, num_coord, tprfile='topol.tpr', trrfile='traj.trr', edrfile='ener.edr', shebang='/bin/bash', ndxfile='', grompp_options='', mdrun_options='', gmx_suffix=''):
         ##TICA
         frame_designation_path = directory + '/' + 'frame_desig.txt'
         with open(frame_designation_path, 'w') as fiile:
@@ -48,8 +48,8 @@ for idx in `seq 1 $nframes`; do
   sed "$start"','"$end"'!d' $startgro > $tmpstartgro
 
   # gromacs preprocessing & MD
-  grompp %(grompp_options)s -f %(mdpfile)s -c $tmpstartgro -p %(topfile)s %(ndxfile_option)s -o %(tprfile)s 1>/dev/null 2>/dev/null
-  mdrun -nt 1 %(mdrun_options)s -s %(tprfile)s -o %(trrfile)s -e %(edrfile)s 1>/dev/null 2>/dev/null
+  grompp%(gmx_suffix)s %(grompp_options)s -f %(mdpfile)s -c $tmpstartgro -p %(topfile)s %(ndxfile_option)s -o %(tprfile)s 1>/dev/null 2>/dev/null
+  mdrun%(gmx_suffix)s -nt 1 %(mdrun_options)s -s %(tprfile)s -o %(trrfile)s -e %(edrfile)s 1>/dev/null 2>/dev/null
 
   # store data
   cat confout.gro >> $outgro
@@ -128,6 +128,10 @@ rm -f $tmpstartgro
             type=str,
             dest="tmpdir")
         
+        parser.add_argument("-gmx_suffix",
+            type=str,
+            default="")
+            
         return parser
 
     def copy_additional_files(self, afiles, rundir):
@@ -299,7 +303,7 @@ rm -f $tmpstartgro
        
         script = 'run.sh'
         self.write_script(script, rundir, rank, 'grompp.mdp', 'start.gro', 'topol.top', 'out.gro', thread_start_coord, thread_num_coord,\
-                     ndxfile=args.ndxfile, grompp_options=args.grompp_options, mdrun_options=args.mdrun_options) ##TICA
+                     ndxfile=args.ndxfile, grompp_options=args.grompp_options, mdrun_options=args.mdrun_options, gmx_suffix=args.gmx_suffix) ##TICA
        
         comm.Barrier()
        
@@ -326,7 +330,7 @@ rm -f $tmpstartgro
                             print >> output_file, line.replace("\n", "")
             
             print "Output data have been saved in %s" %args.output_file
-        comm.Barrier()
-        comm.Abort()
+        
+        return
 if __name__ == '__main__':
     ParallelMDruns().run()
