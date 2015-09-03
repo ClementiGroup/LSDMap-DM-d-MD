@@ -7,19 +7,50 @@ dmdmd: run Extended Diffusion-Map-directed Molecular Dynamics
 
 options:
 
--f : dmdmd configuration file
-
+-f[--file]    : dmdmd configuration file
+-V[--version] : version
+-h[--help]    : help info
 EOF
 }
+version=0.2.1
 
-while getopts "h?f:" opt
-do
-  case $opt in
-    h|\?) usage; exit 0;;
-    f) prmfile=$OPTARG;;
-    \?)echo "Invalid option: -$OPTARG"; exit 1;;
-  esac
+while :; do
+    case $1 in
+        -h|--help)   # Call usage() function to display a help message, then exit.
+            usage
+            exit
+            ;;
+        -f|--file)       # Takes an option argument, ensuring it has been specified.
+            if [ -n "$2" ]; then
+                prmfile=$2
+                shift 2
+                continue
+            else
+                echo "ERROR: "$1" requires a file argument specified afterwards" 
+                exit 1
+            fi
+            ;;
+        
+        -V|--version)
+            echo $version
+            exit
+            ;;
+        ?*)              # Catch unknown options and exit
+            echo "Unknown Option" $1
+            exit
+            ;;
+        
+        *)               # Default case: If no more options then break out of the loop.
+            break
+    esac
+
+    shift
 done
+
+if [ -z "$prmfile" ]; then
+    echo "Must specify .ini file with either -f or --file" 
+    exit
+fi
 
 set -e
 source $prmfile
@@ -43,6 +74,14 @@ fi
 
 if [[ ! -z $tmpdir ]]; then
   p_mdrun_options=$p_mdrun_options" -t $tmpdir"
+fi
+
+if [[ -z $mpi_command ]]; then
+  mpi_command=mpiexec
+fi
+
+if [[ ! -z $gmx_suffix ]]; then
+  gmx_suffix="--gmx_suffix $gmx_suffix"
 fi
 
 # prepare reweighting options
@@ -77,8 +116,6 @@ if [ $iter -eq 0 ]; then
   
 fi
 
-echo
-
 for i in `seq 1 $niters` ; do
 
   tcpu1=$(date +%s)
@@ -87,13 +124,13 @@ for i in `seq 1 $niters` ; do
 
   # 1) MD step
   echo "(1) Compute MD"
-  srun -n $nthreads p_mdrun -f $mdpfile -p $topfile -c $ingro -o tmp.gro $p_mdrun_options
+  $mpi_command -n $nthreads p_mdrun -f $mdpfile -p $topfile -c $ingro -o tmp.gro $p_mdrun_options
   echo
 
   # 2) LSDMap step
   echo "(2) Compute diffusion coordinates"
   echo 2 | trjconv -f tmp.gro -s tmp.gro -o tmpha.gro &>/dev/null
-  srun -n $nthreads lsdmap -f $inifile -c tmpha.gro -w $wfile -n tmp.nn
+  $mpi_command -n $nthreads lsdmap -f $inifile -c tmpha.gro -w $wfile -n tmp.nn
   echo
 
   # 3) selection step
