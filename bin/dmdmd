@@ -64,14 +64,17 @@ fi
 
 # if first iteration, build input .gro file and remove previous results (folder results) and possible wfile
 if [ $iter -eq 0 ]; then
-  rm -rf $ingro
-  for idx in `seq 1 $nreplicas`; do
-      cat $startgro >> $ingro
-  done
-  rm -rf $wfile
-  rm -rf backup.w
   rm -rf results
   mkdir results
+  rm -rf $ingro
+  rm -rf backup.w
+  rm -rf $wfile
+  
+  for idx in `seq 1 $nreplicas`; do
+      cat $startgro >> $ingro
+      echo "1" >> $wfile
+  done
+  
 fi
 
 echo
@@ -84,7 +87,7 @@ for i in `seq 1 $niters` ; do
 
   # 1) MD step
   echo "(1) Compute MD"
-  eval srun -n $nthreads p_mdrun -f $mdpfile -p $topfile -c $ingro -o tmp.gro $p_mdrun_options
+  srun -n $nthreads p_mdrun -f $mdpfile -p $topfile -c $ingro -o tmp.gro $p_mdrun_options
   echo
 
   # 2) LSDMap step
@@ -97,19 +100,20 @@ for i in `seq 1 $niters` ; do
   echo "(3) Select new points according to diffusion coordinates"
   selection $nreplicas -s tmpha.ev -o ncopies.nc 
   echo
-
+  
+  if [ $((($iter + $i) % $nsave)) == 0 ]; then
+    cp tmp.gro results/iter$((iter + $i)).gro
+    cp $wfile results/iter$((iter + $i)).w
+  fi
+  
   # 4) reweighting step
   echo "(4) Update Boltzmann weights"
-  if [ $(($iter + $i)) -gt 1 ]; then cp $wfile backup.w; fi
   eval reweighting -c tmp.gro -n tmp.nn -s ncopies.nc -w $wfile -o out.gro $reweighting_options
   echo
 
   mv out.gro $ingro
 
-  if [ $((($iter + $i) % $nsave)) == 0 ]; then
-    cp tmp.gro results/iter$((iter + $i)).gro
-    if [ $(($iter + $i)) -gt 0 ]; then cp backup.w results/iter$((iter + $i)).w; fi
-  fi
+  
 
   sed -i 's/iter=.*/iter='"$(($iter + $i))"'/g' $prmfile
 
