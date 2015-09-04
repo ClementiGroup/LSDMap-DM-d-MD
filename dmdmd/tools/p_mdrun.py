@@ -128,7 +128,7 @@ rm -f $tmpstartgro
             type=str,
             dest="tmpdir")
         
-        parser.add_argument("-gmx_suffix",
+        parser.add_argument("--gmx_suffix",
             type=str,
             default="")
             

@@ -124,7 +124,9 @@ for i in `seq 1 $niters` ; do
 
   # 1) MD step
   echo "(1) Compute MD"
-  $mpi_command -n $nthreads p_mdrun -f $mdpfile -p $topfile -c $ingro -o tmp.gro $p_mdrun_options
+  $mpi_command -n $nthreads p_mdrun -f $mdpfile -p $topfile -c $ingro -o tmp.gro $p_mdrun_options $gmx_suffix
+  
+ 
   echo
 
   # 2) LSDMap step
