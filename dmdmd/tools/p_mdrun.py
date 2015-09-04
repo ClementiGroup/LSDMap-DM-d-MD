@@ -330,7 +330,7 @@ rm -f $tmpstartgro
                             print >> output_file, line.replace("\n", "")
             
             print "Output data have been saved in %s" %args.output_file
-        
-        return
+        comm.Barrier()
+        comm.Abort()
 if __name__ == '__main__':
     ParallelMDruns().run()
