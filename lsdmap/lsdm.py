@@ -126,13 +126,11 @@ class LSDMap(object):
         parser.add_argument("-f",
             type=str,
             dest="config_file",
-            required=True,
             help='Configuration file (input): ini')
 
         parser.add_argument("-c",
             type=str,
             dest="struct_file",
-            required=True,
             nargs='*',
             help = 'Structure file (input): gro, xvg')
 
@@ -178,7 +176,9 @@ class LSDMap(object):
             type=float,
             dest="nneighbors_cutoff",
             help="Only the indices of neighbors closer than a distance of nneighbors_cutoff are stored in .nn file; should be used with option -n")
-
+        
+        parser.add_argument("-V", "--version", action="store_true", default=False, help="display verison and exit") 
+        
         return parser
 
 
@@ -329,7 +329,17 @@ class LSDMap(object):
 
         parser = self.create_arg_parser()
         args = parser.parse_args() # set argument parser
-
+        
+        if args.version: # Print version and exit
+            if rank == 0:
+                print "0.2.1"
+            return
+        else:
+            if args.config_file == None:
+                raise IOError("lsdmap option -f is required")
+            if args.struct_file == None:
+                raise IOError("lsdmap option -c is required") 
+        
         config = ConfigParser.SafeConfigParser()
         config.read(args.config_file) # set config file parser
 

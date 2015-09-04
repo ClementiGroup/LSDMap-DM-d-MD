@@ -7,19 +7,50 @@ dmdmd: run Extended Diffusion-Map-directed Molecular Dynamics
 
 options:
 
--f : dmdmd configuration file
-
+-f[--file]    : dmdmd configuration file
+-V[--version] : version
+-h[--help]    : help info
 EOF
 }
+version=0.2.1
 
-while getopts "h?f:" opt
-do
-  case $opt in
-    h|\?) usage; exit 0;;
-    f) prmfile=$OPTARG;;
-    \?)echo "Invalid option: -$OPTARG"; exit 1;;
-  esac
+while :; do
+    case $1 in
+        -h|--help)   # Call usage() function to display a help message, then exit.
+            usage
+            exit
+            ;;
+        -f|--file)       # Takes an option argument, ensuring it has been specified.
+            if [ -n "$2" ]; then
+                prmfile=$2
+                shift 2
+                continue
+            else
+                echo "ERROR: "$1" requires a file argument specified afterwards" 
+                exit 1
+            fi
+            ;;
+        
+        -V|--version)
+            echo $version
+            exit
+            ;;
+        ?*)              # Catch unknown options and exit
+            echo "Unknown Option" $1
+            exit
+            ;;
+        
+        *)               # Default case: If no more options then break out of the loop.
+            break
+    esac
+
+    shift
 done
+
+if [ -z "$prmfile" ]; then
+    echo "Must specify .ini file with either -f or --file" 
+    exit
+fi
 
 set -e
 source $prmfile
@@ -45,6 +76,14 @@ if [[ ! -z $tmpdir ]]; then
   p_mdrun_options=$p_mdrun_options" -t $tmpdir"
 fi
 
+if [[ -z $mpi_command ]]; then
+  mpi_command=mpiexec
+fi
+
+if [[ ! -z $gmx_suffix ]]; then
+  gmx_suffix="--gmx_suffix $gmx_suffix"
+fi
+
 # prepare reweighting options
 if [[ ! -z $max_alive_neighbors ]]; then
   reweighting_options=$reweighting_options" --max_alive_neighbors=\"$max_alive_neighbors\""
@@ -64,19 +103,18 @@ fi
 
 # if first iteration, build input .gro file and remove previous results (folder results) and possible wfile
 if [ $iter -eq 0 ]; then
-  rm -rf $ingro
-  for idx in `seq 1 $nreplicas`; do
-      cat $startgro >> $ingro
-  done
-  rm -rf $wfile
-  rm -rf backup.w
   rm -rf results
   mkdir results
+  rm -rf $ingro
+  rm -rf backup.w
+  rm -rf $wfile
+  
+  for idx in `seq 1 $nreplicas`; do
+      cat $startgro >> $ingro
+      echo "1" >> $wfile
+  done
+  
 fi
-
-echo
-
-tstart=`date +%s`
 
 for i in `seq 1 $niters` ; do
 
@@ -86,34 +124,36 @@ for i in `seq 1 $niters` ; do
 
   # 1) MD step
   echo "(1) Compute MD"
-  eval mpiexec -n $nthreads p_mdrun -f $mdpfile -p $topfile -c $ingro -o tmp.gro $p_mdrun_options
+  $mpi_command -n $nthreads p_mdrun -f $mdpfile -p $topfile -c $ingro -o tmp.gro $p_mdrun_options $gmx_suffix
+  
+ 
   echo
 
   # 2) LSDMap step
   echo "(2) Compute diffusion coordinates"
   echo 2 | trjconv -f tmp.gro -s tmp.gro -o tmpha.gro &>/dev/null
-  mpiexec -n $nthreads lsdmap -f $inifile -c tmpha.gro -w $wfile -n tmp.nn
+  $mpi_command -n $nthreads lsdmap -f $inifile -c tmpha.gro -w $wfile -n tmp.nn
   echo
 
   # 3) selection step
   echo "(3) Select new points according to diffusion coordinates"
   selection $nreplicas -s tmpha.ev -o ncopies.nc 
   echo
-
+  
+  if [ $((($iter + $i) % $nsave)) == 0 ]; then
+    cp tmp.gro results/iter$((iter + $i)).gro
+    cp $wfile results/iter$((iter + $i)).w
+  fi
+  
   # 4) reweighting step
   echo "(4) Update Boltzmann weights"
-  if [ $(($iter + $i)) -gt 1 ]; then cp $wfile backup.w; fi
   eval reweighting -c tmp.gro -n tmp.nn -s ncopies.nc -w $wfile -o out.gro $reweighting_options
   echo
 
   mv out.gro $ingro
 
-  if [ $((($iter + $i) % $nsave)) == 0 ]; then
-    cp tmp.gro results/iter$((iter + $i)).gro
-    if [ $(($iter + $i)) -gt 0 ]; then cp backup.w results/iter$((iter + $i)).w; fi
-  fi
+  
 
   sed -i 's/iter=.*/iter='"$(($iter + $i))"'/g' $prmfile
-  t2=`date +%s`
-  echo $((iter+i)) $(((t2-tstart)*$nthreads/3600)) >> dmdmd_cpuhours.log
+
 done
