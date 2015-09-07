@@ -332,7 +332,7 @@ class LSDMap(object):
         
         if args.version: # Print version and exit
             if rank == 0:
-                print "0.2.1"
+                print "2.3.0"
             return
         else:
             if args.config_file == None:
