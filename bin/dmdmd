@@ -108,11 +108,30 @@ if [ $iter -eq 0 ]; then
   rm -rf $ingro
   rm -rf backup.w
   rm -rf $wfile
+  natoms=$(sed -n '2p' $startgro)
+  nlines_per_frame=$((natoms+3))
+  nlines_start_file=`wc -l < "$startgro"`
+  if [ `expr $nlines_start_file % $nlines_per_frame` -ne 0 ] #exit if number of lines don't match
+      then
+      echo "Number of lines in the start file does not match the expected number of lines. Exiting"
+      exit
+  fi
+  n_unique_structures=$((nlines_start_file/nlines_per_frame))
+  n_times_to_duplicate=$((nreplicas/n_unique_structures))
   
-  for idx in `seq 1 $nreplicas`; do
+  for idx in `seq 1 $n_times_to_duplicate`; do
       cat $startgro >> $ingro
-      echo "1" >> $wfile
+      for ydx in `seq 1 $n_unique_structures`; do
+          echo "1" >> $wfile
+      done
   done
+  if [ `expr $nreplicas % $n_unique_structures` -ne 0 ]
+      then
+      cat $startgro >> $ingro
+      for ydx in `seq 1 $n_unique_structures`; do
+          echo "1" >> $wfile
+      done
+  fi
   
 fi
 
