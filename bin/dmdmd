@@ -12,7 +12,7 @@ options:
 -h[--help]    : help info
 EOF
 }
-version=2.3
+version=2.4
 
 while :; do
     case $1 in
