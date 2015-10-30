@@ -62,7 +62,7 @@ class LSDMap(object):
         config = self.config
         args = self.args
 
-        known_status = ['constant', 'kneighbor', 'user', 'kneighbor_mean']
+        known_status = ['constant', 'kneighbor', 'user', 'kneighbor_mean', 'kneighbor_iw']
         _mapped = {'const': 'constant', 'cst': 'constant', 'mean-kneighbor': 'mean_kneighbor'}
 
         if args.epsfile is None:
@@ -71,7 +71,7 @@ class LSDMap(object):
                 status = _mapped[status]
             if not status in known_status:
                 raise ValueError("local scale status should be one of "+ ', '.join(known_status))
-            if status in ['kneighbor', 'kneighbor_mean']:
+            if status in ['kneighbor', 'kneighbor_mean', 'kneighbor_iw']:
                 value = None
                 self.k = config.getint('LOCALSCALE', 'k')
             if status == 'constant':
@@ -375,13 +375,16 @@ class LSDMap(object):
             logging.info("distance matrix loaded")
 
         # compute kth neighbor local scales if needed
-        if self.status_epsilon in ['kneighbor', 'kneighbor_mean']:
+        if self.status_epsilon in ['kneighbor', 'kneighbor_mean', 'kneighbor_iw']:
             #epsilon_thread = []
             epsilon_threadv = np.zeros(npoints_thread,dtype='float')
             for idx, line in enumerate(idx_neighbor_matrix_thread):
                 cum_weight = 0
                 for jdx in line[1:]:
-                    cum_weight += self.weights[jdx]
+                    if self.status_epsilon == 'kneighbor_iw':
+                        cum_weight += 1
+                    else:
+                        cum_weight += self.weights[jdx]
                     if cum_weight >= self.k:
                         break
                 #epsilon_thread.append(distance_matrix_thread[idx,jdx])
@@ -395,7 +398,7 @@ class LSDMap(object):
                 self.epsilon = mean_value_epsilon * np.ones(self.npoints)  # and set it as the new constant local scale
 
             logging.info("kneighbor local scales computed")
-
+            
         epsilon_thread = np.array([self.epsilon[idx] for idx in self.idxs_thread])
 
         # compute kernel
