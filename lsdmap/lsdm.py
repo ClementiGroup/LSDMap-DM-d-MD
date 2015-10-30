@@ -110,7 +110,11 @@ class LSDMap(object):
 
         config = self.config
         self.metric = config.get('LSDMAP','metric')
-
+        if config.has_option('LSDMAP','weight_method'):
+          self.weight_method=config.get('LSDMAP','weight_method')
+        else:
+          self.weight_method='standard'
+     
         self.metric_prms = {}
         for prm in _known_prms:
             try:
@@ -182,12 +186,13 @@ class LSDMap(object):
         return parser
 
 
-    def compute_kernel(self, comm, npoints_thread, distance_matrix_thread, weights_thread, epsilon_thread):
+    def compute_kernel(self, comm, npoints_thread, distance_matrix_thread, weights_thread, epsilon_thread,weight_method='standard'):
         # for a detailed description of the following operations, see the paper:
             # Determination of reaction coordinates via locally scaled diffusion map
             # Mary A. Rohrdanz, Wenwei Zheng, Mauro Maggioni, and Cecilia Clementi
             # The Journal of Chemical Physics 134, 124116 (2011)
 
+      if weight_method=='standard': 
         p_vector_thread = np.zeros(npoints_thread, dtype='float')
         d_vector_thread = np.zeros(npoints_thread, dtype='float')
 
@@ -195,9 +200,11 @@ class LSDMap(object):
         kernel = np.sqrt((weights_thread[:, np.newaxis]).dot(self.weights[np.newaxis])) * \
                  np.exp(-distance_matrix_thread**2/(2*epsilon_thread[:, np.newaxis].dot(self.epsilon[np.newaxis])))
 
+        
         p_vector_thread = np.sum(kernel, axis=1)
         p_vector = np.hstack(comm.allgather(p_vector_thread)) # Eq. (6)
         self.p_vector = p_vector
+        print kernel.shape, p_vector_thread.shape, weights_thread.shape, self.weights.shape
 
         kernel /= np.sqrt(p_vector_thread[:,np.newaxis].dot(p_vector[np.newaxis])) # Eq. (7)
         d_vector_thread = np.sum(kernel, axis=1)
@@ -205,8 +212,40 @@ class LSDMap(object):
         self.d_vector = d_vector
 
         kernel /= np.sqrt(d_vector_thread[:,np.newaxis].dot(d_vector[np.newaxis])) # Eq (8) (slightly modified)
+      else:
+        p_vector_thread = np.zeros(npoints_thread, dtype='float')
+        d_vector_thread = np.zeros(npoints_thread, dtype='float')
 
-        return kernel
+        # compute LSDMap kernel, Eq. (5) of the above paper
+
+        kernel = np.exp(-distance_matrix_thread**2/(2*epsilon_thread[:, np.newaxis].dot(self.epsilon[np.newaxis])))
+        
+        for i in range(npoints_thread):
+            p_vector_thread[i]= np.dot(kernel[i,:], self.weights)
+
+        #p_vector_thread = np.sum(kernel, axis=1)
+        p_vector = np.hstack(comm.allgather(p_vector_thread)) # Eq. (6)
+        self.p_vector = p_vector
+        print "new method"
+        print kernel.shape, p_vector_thread.shape, weights_thread.shape, self.weights.shape
+
+
+        kernel /= np.sqrt(p_vector_thread[:,np.newaxis].dot(p_vector[np.newaxis])) # Eq. (7)
+        #d_vector_thread = np.sum(kernel, axis=1)
+
+        for i in range(npoints_thread):
+            d_vector_thread[i]= np.dot(kernel[i,:], self.weights)
+
+        d_vector = np.hstack(comm.allgather(d_vector_thread)) # Compute D given between Eqs. (7) and (8)
+        self.d_vector = d_vector
+
+        for i in range(npoints_thread):
+            kernel[i,:]= kernel[i,:]*self.weights
+
+        kernel /= np.sqrt(d_vector_thread[:,np.newaxis].dot(d_vector[np.newaxis])) # Eq (8) (slightly modified)
+        kernel=(kernel+kernel.T)/2
+        
+      return kernel
 
 
     def save(self, config, args):
@@ -402,7 +441,7 @@ class LSDMap(object):
         epsilon_thread = np.array([self.epsilon[idx] for idx in self.idxs_thread])
 
         # compute kernel
-        kernel = self.compute_kernel(comm, npoints_thread, distance_matrix_thread, weights_thread, epsilon_thread)
+        kernel = self.compute_kernel(comm, npoints_thread, distance_matrix_thread, weights_thread, epsilon_thread,weight_method=self.weight_method)
 
         # diagonalize kernel
         params= p_arpack._ParallelSymmetricArpackParams(comm, kernel, self.neigs)
