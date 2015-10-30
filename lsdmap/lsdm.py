@@ -204,7 +204,7 @@ class LSDMap(object):
         p_vector_thread = np.sum(kernel, axis=1)
         p_vector = np.hstack(comm.allgather(p_vector_thread)) # Eq. (6)
         self.p_vector = p_vector
-        print kernel.shape, p_vector_thread.shape, weights_thread.shape, self.weights.shape
+        #print kernel.shape, p_vector_thread.shape, weights_thread.shape, self.weights.shape
 
         kernel /= np.sqrt(p_vector_thread[:,np.newaxis].dot(p_vector[np.newaxis])) # Eq. (7)
         d_vector_thread = np.sum(kernel, axis=1)
@@ -226,8 +226,8 @@ class LSDMap(object):
         #p_vector_thread = np.sum(kernel, axis=1)
         p_vector = np.hstack(comm.allgather(p_vector_thread)) # Eq. (6)
         self.p_vector = p_vector
-        print "new method"
-        print kernel.shape, p_vector_thread.shape, weights_thread.shape, self.weights.shape
+        #print "new method"
+        #print kernel.shape, p_vector_thread.shape, weights_thread.shape, self.weights.shape
 
 
         kernel /= np.sqrt(p_vector_thread[:,np.newaxis].dot(p_vector[np.newaxis])) # Eq. (7)
@@ -243,7 +243,6 @@ class LSDMap(object):
             kernel[i,:]= kernel[i,:]*self.weights
 
         kernel /= np.sqrt(d_vector_thread[:,np.newaxis].dot(d_vector[np.newaxis])) # Eq (8) (slightly modified)
-        kernel=(kernel+kernel.T)/2
         
       return kernel
 
