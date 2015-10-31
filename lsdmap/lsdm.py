@@ -262,6 +262,8 @@ class LSDMap(object):
         logging.info("saved .eg file")
         np.savetxt(path + '.ev', np.fliplr(self.evs), fmt='%.18e')
         logging.info("saved .ev file")
+        np.savetxt(path + '.eps', np.fliplr(self.epsilon[np.newaxis]), fmt='%9.6f')
+        logging.info("saved .eps file")
         #np.save(path + '_eg.npy', np.fliplr(self.eigs[np.newaxis]))
         #np.save(path + '_ev.npy', np.fliplr(self.evs))
 

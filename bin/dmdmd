@@ -162,6 +162,9 @@ for i in `seq 1 $niters` ; do
   if [ $((($iter + $i) % $nsave)) == 0 ]; then
     cp tmp.gro results/iter$((iter + $i)).gro
     cp $wfile results/iter$((iter + $i)).w
+    cp tmpha.eg results/iter$((iter + $i)).eg
+    cp tmpha.ev results/iter$((iter + $i)).ev
+    cp tmpha.eps results/iter$((iter + $i)).eps
   fi
   
   # 4) reweighting step
