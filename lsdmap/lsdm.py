@@ -54,7 +54,6 @@ class LSDMap(object):
         self.initialize_weights()
         self.initialize_metric()
 
-        self.neigs = 10
         
 
     def initialize_local_scale(self):
@@ -114,7 +113,12 @@ class LSDMap(object):
           self.weight_method=config.get('LSDMAP','weight_method')
         else:
           self.weight_method='standard'
-     
+        
+        if config.has_option('LSDMAP','n_eg'):
+          self.neigs = config.getint('LSDMAP','n_eg')
+        else:
+          self.neigs = 10
+         
         self.metric_prms = {}
         for prm in _known_prms:
             try:
