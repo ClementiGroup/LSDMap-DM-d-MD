@@ -268,6 +268,10 @@ class LSDMap(object):
         logging.info("saved .ev file")
         np.savetxt(path + '.eps', np.fliplr(self.epsilon[np.newaxis]), fmt='%9.6f')
         logging.info("saved .eps file")
+        if config.has_option('LSDMAP','print_kernel'):
+          if config.get('LSDMAP','print_kernel')=='true': 
+            np.savetxt(path + '.kernel', self.kernel, fmt='%.18e')
+            logging.info("saved .kernel file")
         #np.save(path + '_eg.npy', np.fliplr(self.eigs[np.newaxis]))
         #np.save(path + '_ev.npy', np.fliplr(self.evs))
 
@@ -448,6 +452,7 @@ class LSDMap(object):
         # compute kernel
         kernel = self.compute_kernel(comm, npoints_thread, distance_matrix_thread, weights_thread, epsilon_thread,weight_method=self.weight_method)
 
+        self.kernel=kernel
         # diagonalize kernel
         params= p_arpack._ParallelSymmetricArpackParams(comm, kernel, self.neigs)
         while not params.converged:
