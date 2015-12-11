@@ -202,6 +202,8 @@ class ReweightingStep(object):
 
         self.new_coords = np.array(new_coords)
         self.new_weights = np.array(new_weights)
+         
+        print "number of simulations in next step:", self.new_weights.shape[0]
 
         sum_old_weights=int(round(np.sum(self.weights)))
         sum_new_weights=int(round(np.sum(self.new_weights)))
