@@ -1,0 +1,11 @@
+#PBS -N run_dmdmd
+#PBS -q serial
+#PBS -l nodes=1:ppn=12,pmem=1000m,walltime=1:00:00:00 
+#PBS -M eh22@rice.edu
+#PBS -m n
+#PBS -V
+
+echo "My job ran on:"
+cat $PBS_NODEFILE
+cd $PBS_O_WORKDIR
+dmdmd -f dmdmd.ini

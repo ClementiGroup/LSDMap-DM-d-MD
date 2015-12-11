@@ -1,0 +1,58 @@
+;	Input file
+; integrator
+integrator          =  sd 
+nsteps                   = 500
+dt                  =  0.002
+;
+; removing CM translation and rotation
+comm_mode           =  Angular 
+nstcomm             =  1000
+;
+; output control 
+nstlog                   = 0
+nstenergy                = 0
+nstxout                  = 0
+nstvout                  = 0  
+nstfout                  = 0
+; group definition
+nstxtcout                = 0
+xtc-precision            = 0
+xtc-grps                 = protein
+;
+; neighbour searching
+nstlist             = 0
+ns_type             = grid
+pbc                 = no
+rlist               = 20.0 
+;
+; electrostatic
+rcoulomb            = 20.0 
+coulombtype         = Cut-off 
+;
+; vdw
+vdw-type            = Cut-off 
+rvdw                = 20.0 
+;
+; constraints
+constraints              = all-bonds 
+constraint-algorithm     = lincs
+lincs_iter               = 1
+lincs_order              = 4
+;
+; temperature
+Tcoupl              =  
+tc_grps             = system 
+tau_t               = 2
+ref_t               = 300
+;
+; pression
+;
+; initial velocities
+gen_vel             = yes
+gen_temp                = 300
+gen_seed            = -1
+
+ld-seed = -1
+
+implicit_solvent = no
+
