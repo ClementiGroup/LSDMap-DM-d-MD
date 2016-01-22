@@ -143,14 +143,14 @@ for i in `seq 1 $niters` ; do
 
   # 1) MD step
   echo "(1) Compute MD"
-  $mpi_command -n $nthreads p_mdrun -f $mdpfile -p $topfile -c $ingro -o tmp.gro $p_mdrun_options $gmx_suffix
+  p_mdrun -f $inifile -c $ingro -o tmp.gro
   
  
   echo
 
   # 2) LSDMap step
   echo "(2) Compute diffusion coordinates"
-  echo 2 | trjconv -f tmp.gro -s tmp.gro -o tmpha.gro &>/dev/null
+  echo 2 | $mpi_command -n 1 trjconv_mpi -n index.ndx -f tmp.gro -s tmp.gro -o tmpha.gro #&>/dev/null
   $mpi_command -n $nthreads lsdmap -f $inifile -c tmpha.gro -w $wfile -n tmp.nn
   echo
 
