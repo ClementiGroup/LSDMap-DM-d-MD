@@ -251,41 +251,61 @@ class LSDMap(object):
       return kernel
 
 
-    def save(self, config, args):
+    def save(self, comm, config, args, distance_matrix_thread):
         """
         save LSDMap object in .lsdmap file and eigenvalues/eigenvectors in .eg/.ev files
         """
-
-        if isinstance(self.struct_filename, list):
-            struct_filename = self.struct_filename[0]
-        else:
-            struct_filename = self.struct_filename
-
-        path, ext = os.path.splitext(struct_filename)
-        np.savetxt(path + '.eg', np.fliplr(self.eigs[np.newaxis]), fmt='%9.6f')
-        logging.info("saved .eg file")
-        np.savetxt(path + '.ev', np.fliplr(self.evs), fmt='%.18e')
-        logging.info("saved .ev file")
-        np.savetxt(path + '.eps', np.fliplr(self.epsilon[np.newaxis]), fmt='%9.6f')
-        logging.info("saved .eps file")
-        if config.has_option('LSDMAP','print_kernel'):
-          if config.get('LSDMAP','print_kernel')=='true': 
-            np.savetxt(path + '.kernel', self.kernel, fmt='%.18e')
+        logging.info("start")
+        size = comm.Get_size()  # number of threads
+        rank = comm.Get_rank()
+        if rank == 0:
+          if isinstance(self.struct_filename, list):
+              struct_filename = self.struct_filename[0]
+          else:
+              struct_filename = self.struct_filename
+          path, ext = os.path.splitext(struct_filename)
+          np.savetxt(path + '.eg', np.fliplr(self.eigs[np.newaxis]), fmt='%9.6f')
+          logging.info("saved .eg file")
+          np.savetxt(path + '.ev', np.fliplr(self.evs), fmt='%.18e')
+          logging.info("saved .ev file")
+          np.savetxt(path + '.eps', np.fliplr(self.epsilon[np.newaxis]), fmt='%9.6f')
+          logging.info("saved .eps file")
+          if config.has_option('LSDMAP','save_kernel'):
+           if config.get('LSDMAP','save_kernel')=='true':
+            #np.save(path + '.rmsd', self.kernel) 
+            logging.info("start")
+            size = comm.Get_size()  # number of threads
+            rank = comm.Get_rank()
+            logging.info(str(rank) +' '+str(size))
+            for idx in xrange(size):
+                if idx == 0:
+                  kernel2 = self.kernel
+                  dm2=distance_matrix_thread
+                else:
+                  kernel2 = np.vstack((kernel2,comm.recv(source=idx, tag=2000+idx)))
+                  dm2 = np.vstack((dm2,comm.recv(source=idx, tag=4000+idx)))
+            np.save(path + 'kernel.npy', kernel2)
+            np.save(path + 'dm.npy', dm2)
             logging.info("saved .kernel file")
-        #np.save(path + '_eg.npy', np.fliplr(self.eigs[np.newaxis]))
-        #np.save(path + '_ev.npy', np.fliplr(self.evs))
+          #np.save(path + '_eg.npy', np.fliplr(self.eigs[np.newaxis]))
+          #np.save(path + '_ev.npy', np.fliplr(self.evs))
 
-        if args.output_file is None:
+          if args.output_file is None:
             try:
                 lsdmap_filename = config.get('LSDMAP', 'lsdmfile')
             except:
                 return
-        else:
+          else:
             lsdmap_filename = args.output_file
-        logging.info("checked args.output_file")
-        with open(lsdmap_filename, "w") as file:
-            pickle.dump(self, file)
-        logging.info("pickle dumped")
+          logging.info("checked args.output_file")
+          with open(lsdmap_filename, "w") as file:
+              pickle.dump(self, file)
+          logging.info("pickle dumped")
+        else:
+          if config.has_option('LSDMAP','save_kernel'):
+           if config.get('LSDMAP','save_kernel')=='true':
+              comm.send(self.kernel, dest=0, tag=2000+rank)
+              comm.send(distance_matrix_thread, dest=0, tag=4000+rank)
 
     def save_nneighbors(self, comm, args, neighbor_matrix, idx_neighbor_matrix, epsilon_thread):
 
@@ -472,8 +492,8 @@ class LSDMap(object):
 
         logging.info("kernel diagonalized")
     
-        if rank == 0:    
-            self.save(config, args)
+        self.save(comm,config, args, distance_matrix_thread)
+        logging.info("Eigenvalues/eigenvectors saved (.eg/.ev files)")
         logging.info("Eigenvalues/eigenvectors saved (.eg/.ev files)")
 
         # store nearest neighbors in .nn file if specified via -n option
