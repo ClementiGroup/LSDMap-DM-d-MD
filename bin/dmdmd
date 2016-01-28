@@ -143,7 +143,7 @@ for i in `seq 1 $niters` ; do
 
   # 1) MD step
   echo "(1) Compute MD"
-  p_mdrun -f $inifile -c $ingro -o tmp.gro
+  p_mdrun -f $inifile -c $ingro -s $startgro -o tmp.gro
   
  
   echo
