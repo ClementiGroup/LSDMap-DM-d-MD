@@ -156,7 +156,7 @@ for i in `seq 1 $niters` ; do
 
   # 3) selection step
   echo "(3) Select new points according to diffusion coordinates"
-  selection $nreplicas -s tmpha.ev -o ncopies.nc 
+  selection $nreplicas -s tmp.kernel -o ncopies.nc 
   echo
   
   if [ $((($iter + $i) % $nsave)) == 0 ]; then
@@ -171,7 +171,7 @@ for i in `seq 1 $niters` ; do
   
   # 4) reweighting step
   echo "(4) Update Boltzmann weights"
-  eval reweighting -c tmp.gro -n tmp.nn -s ncopies.nc -w $wfile -o out.gro $reweighting_options
+  reweighting -c tmp.gro -s ncopies.nc -w $wfile -o out.gro 
   echo
 
   mv out.gro $ingro
