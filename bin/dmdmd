@@ -162,6 +162,8 @@ for i in `seq 1 $niters` ; do
   if [ $((($iter + $i) % $nsave)) == 0 ]; then
     cp tmp.gro results/iter$((iter + $i)).gro
     cp $wfile results/iter$((iter + $i)).w
+    cp tmp.nn results/iter$((iter + $i)).nn
+    cp ncopies.nc results/iter$((iter + $i)).nc
     cp tmpha.eg results/iter$((iter + $i)).eg
     cp tmpha.ev results/iter$((iter + $i)).ev
     cp tmpha.eps results/iter$((iter + $i)).eps
