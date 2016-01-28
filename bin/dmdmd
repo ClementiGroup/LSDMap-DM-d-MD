@@ -143,7 +143,7 @@ for i in `seq 1 $niters` ; do
 
   # 1) MD step
   echo "(1) Compute MD"
-  p_mdrun -f $inifile -c $ingro -o tmp.gro
+  p_mdrun -f $inifile -c $ingro -s $startgro -o tmp.gro
   
  
   echo
@@ -151,17 +151,18 @@ for i in `seq 1 $niters` ; do
   # 2) LSDMap step
   echo "(2) Compute diffusion coordinates"
   echo 2 | $mpi_command -n 1 trjconv_mpi -n index.ndx -f tmp.gro -s tmp.gro -o tmpha.gro #&>/dev/null
-  $mpi_command -n $nthreads lsdmap -f $inifile -c tmpha.gro -w $wfile -n tmp.nn
+  $mpi_command -n $nthreads lsdmap -f $inifile -c tmpha.gro -w $wfile -n tmp.nn -k tmpkernel.npy
   echo
 
   # 3) selection step
-  echo "(3) Select new points according to diffusion coordinates"
-  selection $nreplicas -s tmp.kernel -o ncopies.nc 
+  echo "(3) Select new points according to diffusion coordinates, Update Boltzmann weights"
+  selection $nreplicas -c tmp.gro -s tmp.kernel -nc ncopies.nc -o out.gro -r $startgro 
   echo
   
   if [ $((($iter + $i) % $nsave)) == 0 ]; then
-    cp tmp.gro results/iter$((iter + $i)).gro
+    cp out.gro results/iter$((iter + $i)).gro
     cp $wfile results/iter$((iter + $i)).w
+    cp tmpkernel.npy results/iter$((iter + $i)).kernel
     cp tmp.nn results/iter$((iter + $i)).nn
     cp ncopies.nc results/iter$((iter + $i)).nc
     cp tmpha.eg results/iter$((iter + $i)).eg
@@ -169,13 +170,8 @@ for i in `seq 1 $niters` ; do
     cp tmpha.eps results/iter$((iter + $i)).eps
   fi
   
-  # 4) reweighting step
-  echo "(4) Update Boltzmann weights"
-  reweighting -c tmp.gro -s ncopies.nc -w $wfile -o out.gro 
-  echo
-
   mv out.gro $ingro
-
+  rm input.xtc
   
 
   sed -i 's/iter=.*/iter='"$(($iter + $i))"'/g' $prmfile

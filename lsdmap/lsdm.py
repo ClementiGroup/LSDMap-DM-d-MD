@@ -180,6 +180,11 @@ class LSDMap(object):
             dest="nneighbors",
             help="Number of nearest neighbors stored in .nn file; should be used with option -n")
 
+        parser.add_argument("-k",
+            type=str,
+            dest="kernelfile",
+            help="where to store kernel")
+
         parser.add_argument("--nc",
             type=float,
             dest="nneighbors_cutoff",
@@ -270,8 +275,8 @@ class LSDMap(object):
           logging.info("saved .ev file")
           np.savetxt(path + '.eps', np.fliplr(self.epsilon[np.newaxis]), fmt='%9.6f')
           logging.info("saved .eps file")
-          if config.has_option('LSDMAP','save_kernel'):
-           if config.get('LSDMAP','save_kernel')=='true':
+          
+          if args.kernelfile is not None:
             #np.save(path + '.rmsd', self.kernel) 
             logging.info("start")
             size = comm.Get_size()  # number of threads
@@ -284,8 +289,8 @@ class LSDMap(object):
                 else:
                   kernel2 = np.vstack((kernel2,comm.recv(source=idx, tag=2000+idx)))
                   dm2 = np.vstack((dm2,comm.recv(source=idx, tag=4000+idx)))
-            np.save(path + 'kernel.npy', kernel2)
-            np.save(path + 'dm.npy', dm2)
+            np.save(args.kernelfile, kernel2)
+            #np.save(path + 'dm.npy', dm2)
             logging.info("saved .kernel file")
           #np.save(path + '_eg.npy', np.fliplr(self.eigs[np.newaxis]))
           #np.save(path + '_ev.npy', np.fliplr(self.evs))

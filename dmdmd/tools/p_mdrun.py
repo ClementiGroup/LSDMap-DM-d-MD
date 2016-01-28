@@ -21,6 +21,11 @@ class ParallelMDruns(object):
             dest="inifile",
             required=True)
         
+        parser.add_argument("-s",
+            type=str,
+            dest="startfile",
+            required=True)
+        
         parser.add_argument("-c",
             type=str, 
             dest="grofile",
@@ -86,14 +91,20 @@ class ParallelMDruns(object):
         current_n_coord = 0    
         max_index=nnodes
         p2=subprocess.call('rm '+str(args.output_file),shell=True)
+        p2=subprocess.call("aprun -n 1 -N 1 -d "+str(nthreads_gromacs)+" trjconv_mpi -f "+str(args.grofile)+" -o input.xtc 1>/dev/null 2>/dev/null",shell=True)
+        import MDAnalysis 
+        u = MDAnalysis.Universe(startfile,'input.xtc')
         while(current_n_coord < ncoords):
           set_pid=set()
           logging.info('Starting with #: '+str(current_n_coord))
           for index in range(nnodes): 
             if current_n_coord < ncoords:
-               start=(natoms+3)*(current_n_coord)+1
-               end=(natoms+3)*(current_n_coord+1)
-               p=subprocess.Popen("sed '"+str(start)+','+str(end)+"!d' "+str(args.grofile)+' > tmp/core'+str(index)+"/tmp.gro; cd tmp/core"+str(index) +" ; aprun -n  1 -N  1 -d "+str(nthreads_gromacs)+" grompp_mpi "+additional+" -f ../../grompp.mdp -c tmp.gro -p ../../topol.top -maxwarn 2; aprun -n 1 -N 1 -d "+str(nthreads_gromacs)+" mdrun_mpi 1>/dev/null 2>/dev/null; rm \#*",shell=True)
+               with MDAnalysis.coordinates.GRO.GROWriter("tmp/core"+str(index)+"/tmp.gro", u.atoms.n_atoms) as w:
+                 w.write(u, frame=current_n_coord)
+               #start=(natoms+3)*(current_n_coord)+1
+               #end=(natoms+3)*(current_n_coord+1)
+               #p2=subprocess.call("sed '"+str(start)+','+str(end)+"!d' "+str(args.grofile)+' > tmp/core'+str(index)+"/tmp.gro",shell=True)
+               p=subprocess.Popen("cd tmp/core"+str(index) +" ; aprun -n  1 -N  1 -d "+str(nthreads_gromacs)+" grompp_mpi "+additional+" -f ../../grompp.mdp -c tmp.gro -p ../../topol.top -maxwarn 2; aprun -n 1 -N 1 -d "+str(nthreads_gromacs)+" mdrun_mpi 1>/dev/null 2>/dev/null; rm \#*",shell=True)
                #logging.info("sed '"+str(start)+','+str(end)+"!d' "+str(args.grofile)+' > tmp/core'+str(index)+"/tmp.gro; cd tmp/core"+str(index) +"; aprun -n 1 -N 1 -d "+str(nthreads_gromacs)+" grompp_mpi "+additional+" -f ../../grompp.mdp -c tmp.gro -p ../../topol.top -maxwarn 2 1>/dev/null 2>/dev/null; aprun -n 1 -N 1 -d "+str(nthreads_gromacs)+" mdrun_mpi 1>/dev/null 2>/dev/null; rm \#*")
                set_pid.add(p)
                current_n_coord=current_n_coord+1
