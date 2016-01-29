@@ -93,7 +93,7 @@ class ParallelMDruns(object):
         p2=subprocess.call('rm '+str(args.output_file),shell=True)
         p2=subprocess.call("aprun -n 1 -N 1 -d "+str(nthreads_gromacs)+" trjconv_mpi -f "+str(args.grofile)+" -o input.xtc 1>/dev/null 2>/dev/null",shell=True)
         import MDAnalysis 
-        u = MDAnalysis.Universe(startfile,'input.xtc')
+        u = MDAnalysis.Universe(args.startfile,'input.xtc')
         while(current_n_coord < ncoords):
           set_pid=set()
           logging.info('Starting with #: '+str(current_n_coord))
