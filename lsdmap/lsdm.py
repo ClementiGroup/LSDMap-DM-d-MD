@@ -196,7 +196,7 @@ class LSDMap(object):
             # Mary A. Rohrdanz, Wenwei Zheng, Mauro Maggioni, and Cecilia Clementi
             # The Journal of Chemical Physics 134, 124116 (2011)
 
-      if weight_method=='standard': 
+      if weight_method=='old': 
         p_vector_thread = np.zeros(npoints_thread, dtype='float')
         d_vector_thread = np.zeros(npoints_thread, dtype='float')
 
@@ -216,7 +216,7 @@ class LSDMap(object):
         self.d_vector = d_vector
 
         kernel /= np.sqrt(d_vector_thread[:,np.newaxis].dot(d_vector[np.newaxis])) # Eq (8) (slightly modified)
-      else:
+      if weight_method=='standard':
         p_vector_thread = np.zeros(npoints_thread, dtype='float')
         d_vector_thread = np.zeros(npoints_thread, dtype='float')
 
