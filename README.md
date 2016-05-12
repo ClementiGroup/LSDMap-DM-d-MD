@@ -26,6 +26,20 @@ The install with pip is following:
        pip install Cython
        pip install lsdmap
 
+An alternative installation is:
+1. First, make sure that you have NumPy, SciPy, mpi4py and cython
+   installed. If not, get them from http://numpy.scipy.org/,
+   http://mpi4py.scipy.org/, http://cython.org/. Compile/install them.
+
+2. From the main lsdmap distribution directory run this command
+   (plus any extra flags, e.g., --prefix or --user to specify the
+   installation directory):
+
+        python setup.py install
+
+After installation, make sure that the folder bin inside your installation
+directory is included in your PATH. It contains the executable "lsdmap"
+that is used to compute LSDMap. 
 Tests can be run in the folder examples/lsdmap. This folder contains the structure file aladip_1000.gro
 which contains 1000 configurations of alanine dipeptide in vacuum and
 an example of configuration file (.ini) that should be used to compute
