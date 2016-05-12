@@ -17,45 +17,16 @@ been generated containing the eigenvectors and eigenvalues, respectively.
 
 See the paper W. Zheng, M. A. Rohrdanz, M. Maggioni and C. Clementi, J. Chem. Phys., 2011, 134, 144109 for more information on how LSDMap works.
 
-
-Prerequisites
--------------
-
-Before installing LSDMap package, make sure that you have the following
-packages installed:
-
-* NumPy; version 1.4.1 or larger
-
-* Scipy; version 0.10.0 or larger
-
-* mpi4py; version 1.0 or larger
-
-* cython; version 0.20 or later
-
-Version 2.6.x or 2.7.x of python should be used. 
-
-
 Installation
 ------------
 
-The Python Distutils are used to build and install LSDMap, so it is
-fairly simple to get things ready to go. Following are very simple
-instructions on how to proceed:
+The install with pip is following:
 
-1. First, make sure that you have NumPy, SciPy, mpi4py and cython
-   installed. If not, get them from http://numpy.scipy.org/,
-   http://mpi4py.scipy.org/, http://cython.org/. Compile/install them.
+       pip install numpy
+       pip install Cython
+       pip install lsdmap
 
-2. From the main lsdmap distribution directory run this command
-   (plus any extra flags, e.g., --prefix or --user to specify the
-   installation directory):
-
-        python setup.py install
-
-After installation, make sure that the folder bin inside your installation
-directory is included in your PATH. It contains the executable "lsdmap"
-that is used to compute LSDMap. Tests can be run in the folder
-examples/lsdmap. This folder contains the structure file aladip_1000.gro
+Tests can be run in the folder examples/lsdmap. This folder contains the structure file aladip_1000.gro
 which contains 1000 configurations of alanine dipeptide in vacuum and
 an example of configuration file (.ini) that should be used to compute
 LSDMap. To test the program, simply type in this folder:

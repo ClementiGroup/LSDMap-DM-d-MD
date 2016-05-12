@@ -2,7 +2,7 @@ BSD Software License
 
 For LSDMap
 
-Copyright © 2012, Rice University
+Copyright © 2016 Rice University
 Developed by W. Zheng, M.A. Rohrdanz, and C. Clementi
 All rights reserved.
 

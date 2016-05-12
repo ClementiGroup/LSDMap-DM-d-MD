@@ -3,6 +3,7 @@ import sys
 import re
 import textwrap
 
+
 from distutils.core import setup
 from distutils.core import Extension
 from distutils.sysconfig import get_python_lib
@@ -64,12 +65,9 @@ def check_import(pkgname, pkgver):
             % {'pkgname': pkgname, 'pkgver': mod.__version__} ))
     globals()[pkgname] = mod
 
-check_import('numpy', min_numpy_version)
-check_import('scipy', min_scipy_version)
-check_import('mpi4py', min_mpi4py_version)
 check_import('cython', min_cython_version)
 
-import numpy as np
+import numpy
 try:
     numpy_include = numpy.get_include()
 except AttributeError:
@@ -94,8 +92,13 @@ setup(name='lsdmap',
       packages=['lsdmap', 'lsdmap.mpi', 'lsdmap.rw', 'lsdmap.util', 'lsdmap.rbf', 'dmdmd', 'dmdmd.tools'],
       scripts = ['bin/lsdmap','bin/dmdmd', 'bin/rbffit','bin/reweighting','bin/selection','bin/p_mdrun'],
       ext_modules = cythonize(ext_modules),
+      version = '2.4.1',
+      author = 'Clementi group',
+      author_email = 'eh22@rice.edu',
+      url = 'https://github.com/ClementiGroup/LSDMap',
       cmdclass = cmdclass,
       license='LICENSE.txt',
       description='LSDMap package',
+      requires=['scipy','mpi4py',],
       long_description=open('README.md').read(),
      )
